@@ -1,11 +1,7 @@
 import os
 from vertexai import agent_engines
 
-# The BaseAgentAdapter will be imported from the framework once it's installed.
-# For now, we define a placeholder to allow the code to be written.
-class BaseAgentAdapter:
-    def get_response(self, prompt: str) -> dict:
-        raise NotImplementedError
+from agent_eval_framework.adapters import BaseAgentAdapter
 
 class VertexAgentEngineAdapter(BaseAgentAdapter):
     def __init__(self, agent_engine_id: str):

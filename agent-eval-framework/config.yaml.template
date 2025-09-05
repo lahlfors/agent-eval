@@ -11,5 +11,22 @@ agent_config:
 dataset_path: "eval/vertex_eval_data/golden_record.jsonl"
 
 # The list of metrics to run using the Vertex AI Evaluation Service.
+# This can be a mix of built-in metrics (strings) and custom metrics (dictionaries).
 metrics:
   - "rouge"
+  - "exact_match"
+  - "trajectory_exact_match"
+
+  # Example of a custom metric.
+  # The framework will import the function from the `custom_function_path`
+  # and pass it to the Vertex AI Evaluation Service.
+  # - name: "my_custom_check"
+  #   custom_function_path: "my_project.my_metrics.my_custom_metric_function"
+
+# (Optional) A mapping from the framework's internal column names to the
+# column names in your dataset file. This allows you to use datasets that
+# don't follow the framework's default naming convention.
+# column_mapping:
+#   prompt: "your_prompt_column_name"
+#   reference_response: "your_reference_column_name"
+#   reference_trajectory: "your_trajectory_column_name"

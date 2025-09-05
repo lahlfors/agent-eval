@@ -1,15 +1,20 @@
 # The import path to the adapter class.
-# This now points to the adapter inside the personalized_shopping package.
 agent_adapter_class: "personalized_shopping.agent_adapter.VertexAgentEngineAdapter"
 
 # Configuration for the VertexAgentEngineAdapter.
 agent_config:
-  # The AGENT_ENGINE_ID will be pulled from the .env file by the framework.
   agent_engine_id: "placeholder-id"
 
-# The path to the golden dataset, relative to the project root.
+# The path to the golden dataset.
 dataset_path: "eval/vertex_eval_data/golden_record.jsonl"
 
-# The list of metrics to run.
+# The list of metrics to run, now including a trajectory metric.
 metrics:
   - "rouge"
+  - "trajectory_exact_match"
+
+# Example of using column mapping.
+column_mapping:
+  prompt: "prompt"
+  reference_response: "reference_response"
+  reference_trajectory: "reference_trajectory"
