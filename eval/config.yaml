@@ -1,0 +1,15 @@
+# The import path to the adapter class that will be used to interact with the agent.
+agent_adapter_class: "eval.adapters.VertexAgentEngineAdapter"
+
+# Configuration specific to the chosen agent adapter.
+agent_config:
+  # The AGENT_ENGINE_ID for the deployed Vertex AI Agent Engine.
+  # Note: The script will prioritize getting this value from the AGENT_ENGINE_ID environment variable.
+  agent_engine_id: "placeholder-id"
+
+# The local or GCS path to the golden dataset.
+dataset_path: "eval/vertex_eval_data/golden_record.jsonl"
+
+# The list of metrics to run using the Vertex AI Evaluation Service.
+metrics:
+  - "rouge"

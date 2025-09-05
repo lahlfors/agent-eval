@@ -1,90 +1,73 @@
-# Copyright 2025 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law of aS KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import os
 import json
 import pytest
 import dotenv
+import yaml
+import importlib
 from google.cloud import aiplatform
-from vertexai import agent_engines
 
-
-# Function to call the live agent
-def call_live_agent(prompt: str) -> str:
-    """Calls the deployed agent and returns the response."""
-    agent_engine_id = os.getenv("AGENT_ENGINE_ID")
-    if not agent_engine_id:
-        raise ValueError("AGENT_ENGINE_ID environment variable not set.")
-
-    agent_engine = agent_engines.get(agent_engine_id)
-    # Use a static user_id for evaluation purposes
-    session = agent_engine.create_session(user_id="evaluation_user")
-
-    response_parts = []
-    response = agent_engine.query(
-        user_id=session["user_id"], session_id=session["id"], message=prompt
-    )
-    for part in response.parts:
-        if "text" in part:
-            response_parts.append(part["text"])
-
-    return "".join(response_parts)
+def load_class(import_str: str):
+    """Dynamically loads a class from a string path."""
+    module_path, class_name = import_str.rsplit('.', 1)
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
 
 @pytest.fixture(scope="session", autouse=True)
 def load_env():
     """Loads environment variables from .env file."""
     dotenv.load_dotenv()
 
-def test_vertex_evaluation():
+def test_vertex_evaluation_with_config():
     """
-    Tests the agent using the Vertex AI Evaluation Service.
+    Tests the agent using a config-driven, adapter-based approach.
     """
-    # 1. Setup
+    # 1. Load Configuration
+    config_path = os.path.join(os.path.dirname(__file__), "config.yaml")
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    # 2. Setup GCP and AI Platform
     project_id = os.getenv("GCP_PROJECT_ID")
     location = os.getenv("GCP_REGION")
     if not project_id or not location:
         pytest.skip("GCP_PROJECT_ID and GCP_REGION environment variables must be set.")
-
     aiplatform.init(project=project_id, location=location)
 
-    # 2. Load Golden Dataset
-    eval_dataset_path = os.path.join(
-        os.path.dirname(__file__), "vertex_eval_data", "golden_record.jsonl"
-    )
-    with open(eval_dataset_path, "r") as f:
+    # 3. Instantiate Agent Adapter
+    # Override agent_engine_id from config with environment variable if it exists for security
+    agent_engine_id_from_env = os.getenv("AGENT_ENGINE_ID")
+    if agent_engine_id_from_env:
+        config["agent_config"]["agent_engine_id"] = agent_engine_id_from_env
+
+    adapter_class = load_class(config["agent_adapter_class"])
+    adapter = adapter_class(**config["agent_config"])
+
+    # 4. Load Golden Dataset (path is relative to project root)
+    dataset_path = config["dataset_path"]
+    with open(dataset_path, "r") as f:
         golden_dataset = [json.loads(line) for line in f]
 
-    # 3. Generate Actual Responses
+    # 5. Generate Actual Responses
     for record in golden_dataset:
         prompt = record["prompt"]
-        # This calls the live agent for each prompt in the dataset
         try:
-            record["actual_response"] = call_live_agent(prompt)
+            # Use the adapter to get the response
+            response_data = adapter.get_response(prompt)
+            record["actual_response"] = response_data["actual_response"]
         except Exception as e:
-            pytest.fail(f"call_live_agent failed for prompt '{prompt}': {e}")
+            pytest.fail(f"Adapter failed for prompt '{prompt}': {e}")
 
-
-    # 4. Define and Run Evaluation Task
+    # 6. Define and Run Evaluation Task
     eval_task = aiplatform.evaluate.EvalTask(
         dataset=golden_dataset,
-        metrics=["rouge"],
+        metrics=config["metrics"],
         response_column="actual_response",
         reference_column="reference_response",
     )
-
     result = eval_task.evaluate()
 
-    # 5. Print and Assert
+    # 7. Print and Assert
     print("Evaluation results:")
     print(result.metrics_table)
     assert result is not None
-    assert "rouge" in result.metrics_table.columns
+    assert config["metrics"][0] in result.metrics_table.columns
