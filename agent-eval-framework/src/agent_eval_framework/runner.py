@@ -6,6 +6,11 @@ import dotenv
 import tempfile
 from google.cloud import aiplatform
 from google.cloud import storage
+from vertexai.preview.language_models import EvaluationClient
+from google.cloud.aiplatform_v1beta1.types import (
+    evaluation as evaluation_types,
+    model_evaluation as model_evaluation_types,
+)
 
 def _download_gcs_file(gcs_uri: str) -> str:
     """Downloads a file from GCS to a temporary local path."""
@@ -23,6 +28,43 @@ def load_class(import_str: str):
     module_path, class_name = import_str.rsplit('.', 1)
     module = importlib.import_module(module_path)
     return getattr(module, class_name)
+
+def _build_metrics(metrics_config: list, golden_dataset: list):
+    """Builds the list of metric objects for the EvaluationClient."""
+    metrics = []
+    for metric_spec in metrics_config:
+        metric_type = metric_spec.get("type", "computation") # Default to computation
+        metric_name = metric_spec["name"]
+
+        if metric_type == "computation":
+            metrics.append(evaluation_types.Metric(name=metric_name))
+
+        elif metric_type == "rubric":
+            # Check for trajectory-based rubric
+            if "trajectory" in metric_name and "actual_trajectory" not in golden_dataset[0]:
+                 raise ValueError(f"Metric '{metric_name}' requires 'actual_trajectory' column in dataset.")
+
+            rubric = evaluation_types.RubricMetric(
+                name=metric_name,
+                predefined_spec_name=metric_spec.get("predefined_spec_name"),
+                metric_spec_parameters=metric_spec.get("metric_spec_parameters"),
+                version=metric_spec.get("version"),
+            )
+            metrics.append(rubric)
+
+        elif metric_type == "custom_function":
+            custom_function = load_class(metric_spec["custom_function_path"])
+            # The EvaluationClient expects a specific structure for custom functions
+            custom_metric = evaluation_types.CustomMetric(
+                name=metric_name,
+                evaluation_function=custom_function
+            )
+            metrics.append(custom_metric)
+
+        else:
+            raise ValueError(f"Unknown metric type: {metric_type}")
+    return metrics
+
 
 def run_evaluation(config_path: str):
     """
@@ -66,15 +108,12 @@ def run_evaluation(config_path: str):
     # 4a. Apply Column Mapping if provided
     if "column_mapping" in config:
         mapping = config["column_mapping"]
-        reversed_mapping = {v: k for k, v in mapping.items()}
-
         new_dataset = []
         for record in golden_dataset:
             new_record = {}
             for internal_name, user_name in mapping.items():
                 if user_name in record:
                     new_record[internal_name] = record[user_name]
-
             # Copy over any other columns that weren't mapped
             for key, value in record.items():
                 if key not in mapping.values():
@@ -96,31 +135,46 @@ def run_evaluation(config_path: str):
             record["actual_response"] = "AGENT_EXECUTION_ERROR"
             record["actual_trajectory"] = []
 
-    # 6. Define and Run Evaluation Task
+    # 6. Define and Run Evaluation
     print("Running evaluation...")
+    eval_client = EvaluationClient(project_id=project_id, location=location)
 
-    # Check if trajectory metrics are requested to dynamically add columns
-    has_trajectory_metrics = any("trajectory" in metric for metric in config["metrics"])
+    metrics = _build_metrics(config["metrics"], golden_dataset)
 
-    eval_task_args = {
-        "dataset": golden_dataset,
-        "metrics": config["metrics"],
-        "response_column": "actual_response",
-    }
-
-    if "reference_response" in golden_dataset[0]:
-      eval_task_args["reference_column"] = "reference_response"
-
-    if has_trajectory_metrics:
-        eval_task_args["trajectory_column"] = "actual_trajectory"
-        if "reference_trajectory" in golden_dataset[0]:
-            eval_task_args["reference_trajectory_column"] = "reference_trajectory"
-
-    eval_task = aiplatform.evaluate.EvalTask(**eval_task_args)
-    result = eval_task.evaluate()
+    evaluation_run = eval_client.evaluate(
+        dataset=golden_dataset,
+        metrics=metrics,
+        response_column="actual_response",
+        reference_column="reference_response" if "reference_response" in golden_dataset[0] else None,
+        trajectory_column="actual_trajectory" if "actual_trajectory" in golden_dataset[0] else None,
+        reference_trajectory_column="reference_trajectory" if "reference_trajectory" in golden_dataset[0] else None,
+    )
 
     # 7. Print results
     print("\\n--- Evaluation Results ---")
-    print(result.metrics_table)
 
-    return result
+    # The result object from the new client is different.
+    # We attempt to print the results in a structured way.
+    try:
+        # The new client may return a result object with a .metrics_table attribute
+        if hasattr(evaluation_run, 'metrics_table') and evaluation_run.metrics_table is not None:
+            print(evaluation_run.metrics_table)
+        # Or it may have a 'metrics' attribute that is a list of metric objects
+        elif hasattr(evaluation_run, 'metrics') and evaluation_run.metrics is not None:
+            for metric in evaluation_run.metrics:
+                print(f"Metric: {metric.name}")
+                # Assuming the metric object has a 'value' or similar attribute
+                if hasattr(metric, 'value'):
+                    print(f"  Value: {metric.value}")
+                if hasattr(metric, 'result'):
+                    print(f"  Result: {metric.result}")
+        # As a fallback, print the dictionary representation of the object
+        else:
+            print(vars(evaluation_run))
+
+    except Exception as e:
+        print(f"Could not parse and display results automatically. Printing raw object.")
+        print(evaluation_run)
+
+
+    return evaluation_run
