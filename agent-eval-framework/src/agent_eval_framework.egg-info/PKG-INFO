@@ -1,0 +1,19 @@
+Metadata-Version: 2.4
+Name: agent-eval-framework
+Version: 0.1.0
+Summary: A generic framework for evaluating AI agents with Vertex AI.
+Author-email: Jules <jules@example.com>
+Project-URL: Homepage, https://github.com/example/agent-eval-framework
+Project-URL: Bug Tracker, https://github.com/example/agent-eval-framework/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: google-cloud-aiplatform>=1.0
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: python-dotenv>=1.0
+
+# Agent Evaluation Framework
+
+A standalone framework for evaluating any agent using the Vertex AI Evaluation Service.

@@ -1,12 +1,11 @@
-from abc import ABC, abstractmethod
-from vertexai import agent_engines
 import os
+from vertexai import agent_engines
 
-class BaseAgentAdapter(ABC):
-    @abstractmethod
+# The BaseAgentAdapter will be imported from the framework once it's installed.
+# For now, we define a placeholder to allow the code to be written.
+class BaseAgentAdapter:
     def get_response(self, prompt: str) -> dict:
-        """Takes a prompt and returns the agent's response and trajectory."""
-        pass
+        raise NotImplementedError
 
 class VertexAgentEngineAdapter(BaseAgentAdapter):
     def __init__(self, agent_engine_id: str):

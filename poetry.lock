@@ -25,6 +25,25 @@ files = [
 ]
 
 [[package]]
+name = "agent-eval-framework"
+version = "0.1.0"
+description = "A generic framework for evaluating AI agents with Vertex AI."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = []
+develop = true
+
+[package.dependencies]
+google-cloud-aiplatform = ">=1.0"
+python-dotenv = ">=1.0"
+PyYAML = ">=6.0"
+
+[package.source]
+type = "directory"
+url = "agent-eval-framework"
+
+[[package]]
 name = "alembic"
 version = "1.16.5"
 description = "A database migration tool for SQLAlchemy."
@@ -1270,7 +1289,7 @@ google-crc32c = ">=1.5.0,<2.0.0dev"
 grpc-google-iam-v1 = ">=0.12.4,<1.0.0"
 proto-plus = [
     {version = ">=1.25.0,<2.0.0", markers = "python_version >= \"3.13\""},
-    {version = ">=1.22.3,<2.0.0", markers = "python_version < \"3.13\""},
+    {version = ">=1.22.3,<2.0.0"},
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
 
@@ -1318,7 +1337,7 @@ grpc-google-iam-v1 = ">=0.12.4,<1.0.0"
 opentelemetry-api = ">=1.9.0"
 proto-plus = [
     {version = ">=1.25.0,<2.0.0", markers = "python_version >= \"3.13\""},
-    {version = ">=1.22.2,<2.0.0", markers = "python_version >= \"3.11\""},
+    {version = ">=1.22.2,<2.0.0", markers = "python_version >= \"3.11\" and python_version < \"3.13\""},
 ]
 protobuf = ">=3.20.2,<4.21.0 || >4.21.0,<4.21.1 || >4.21.1,<4.21.2 || >4.21.2,<4.21.3 || >4.21.3,<4.21.4 || >4.21.4,<4.21.5 || >4.21.5,<7.0.0"
 
@@ -6295,4 +6314,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "b726fa0e66da0d38ccc04e54b94f07e60830df3bd6ed6aed3dcd19c0c775a98b"
+content-hash = "d87c647f1031bb49a15d73595c96c968b7c5f34dff9dddd933c60fee4bd3e4b7"
