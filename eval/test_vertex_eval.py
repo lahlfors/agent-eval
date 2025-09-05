@@ -42,7 +42,7 @@ def test_vertex_evaluation_with_config():
     adapter_class = load_class(config["agent_adapter_class"])
     adapter = adapter_class(**config["agent_config"])
 
-    # 4. Load Golden Dataset (path is relative to project root)
+    # 4. Load Golden Dataset
     dataset_path = config["dataset_path"]
     with open(dataset_path, "r") as f:
         golden_dataset = [json.loads(line) for line in f]
