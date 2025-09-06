@@ -1,125 +1,125 @@
-# Personalized Shopping Agent
+# Monorepo for Agent Development and Evaluation
 
-## Overview of the Agent
-This agent sample efficiently provides tailored product recommendations within the ecosystem of a specific brand, merchant, or online marketplace. It enhances the shopping experience within its own context by using targeted data and offering relevant suggestions.
+This repository serves as a comprehensive example of a well-structured, modular system for developing, deploying, and evaluating AI agents. It contains multiple independent but related packages, showcasing best practices for code organization and separation of concerns.
 
-## Agent Details
-The personalized-shopping agent has the following capabilities:
+## Repository Structure
 
-*   Navigates specific websites to gather product information and understand available options.
-*   Identifies suitable products using text and image-based search applied to a specific catalog.
-*   Compares product features or within a defined brand or marketplace scope.
-*   Recommends products based on user behavior and profile data.
+This repository is a "monorepo" containing several distinct Python packages:
 
-The agent’s default configuration allows you to simulate interactions with a focused shopper. It demonstrates how an agent navigates a specific retail environment.
+-   **`agent-eval-framework/`**: A powerful, standalone framework for evaluating agents using the Vertex AI Evaluation Service. It is designed to be generic and reusable for any agent.
+-   **`well_structured_system/`**: A sample application demonstrating principles of good software architecture, including dependency injection, asynchronous programming, and clear separation of concerns (app logic vs. evaluation logic).
+-   **`personalized_shopping/`**: A concrete example of a conversational AI agent built for e-commerce. This agent acts as a *consumer* of the `agent-eval-framework` to demonstrate how a real-world agent can be evaluated.
+-   **`eval/`**: Contains configuration and test scripts for running evaluations on the `personalized_shopping` agent.
 
-| Feature          | Description                                           |
-| ---------------- | ----------------------------------------------------- |
-| Interaction Type | Conversational                                        |
-| Complexity       | Easy                                                  |
-| Agent Type       | Single Agent                                          |
-| Components       | Web Environment, SearchTool, ClickTool, Memory        |
-| Vertical         | E-Commerce                                            |
+## Core Concepts
+
+### 1. Decoupled Evaluation Framework (`agent-eval-framework`)
+
+The cornerstone of this repository is the **`agent-eval-framework`**. Its key features are:
+
+-   **Generic**: It has no knowledge of any specific agent's implementation details.
+-   **Configuration-Driven**: All aspects of an evaluation (the agent to test, the dataset to use, the metrics to run) are defined in a single `config.yaml` file.
+-   **Extensible**: It uses an "Adapter" pattern, allowing you to easily make any agent compatible with the framework by writing a simple wrapper class.
+-   **Powered by Vertex AI**: It leverages the robust and scalable metrics of the Google Vertex AI Evaluation Service.
+
+By installing this framework as a package, you can use it to evaluate any number of different agents without duplicating evaluation logic.
+
+### 2. Modular Application (`well_structured_system`)
+
+The `well_structured_system` is an ideal starting point for building robust applications. It demonstrates:
+
+-   **Asynchronous Operations**: Using `asyncio` for efficient, non-blocking tool calls.
+-   **Caching**: A simple, swappable caching mechanism to improve performance.
+-   **Separation of Concerns**: Application code (`src/app`) is cleanly separated from its evaluation logic (`src/evaluation`).
+
+### 3. Example Agent (`personalized_shopping`)
+
+The `personalized_shopping` agent is a practical example that simulates a retail shopping assistant. It showcases how to:
+
+-   Define an agent with tools (`search`, `click`).
+-   Create a custom **Adapter** (`PersonalizedShoppingAgentAdapter`) to make the agent compatible with the evaluation framework.
+-   Configure and run evaluations against a live, deployed version of the agent.
 
 ## Setup and Installation
+
 **Prerequisites:**
-To begin, please firstly clone this repo, then install the required packages with the `poetry` command below.
+-   Python 3.9+
+-   [Poetry](https://python-poetry.org/docs/#installation) for dependency management.
 
-```bash
-# Navigate to the project root
-cd personalized-shopping
+**Installation Steps:**
 
-# Install all dependencies for the agent and the evaluation framework
-poetry install
-```
-
-**Data Setup:**
-To run the agent, you must first download the JSON files containing the product information.
-
-```bash
-cd personalized_shopping/shared_libraries
-mkdir data
-cd data
-
-# Download required data files using gdown
-gdown https://drive.google.com/uc?id=1EgHdxQ_YxqIQlvvq5iKlCrkEKR6-j0Ib;
-gdown https://drive.google.com/uc?id=1IduG0xl544V_A_jv3tHXC0kyFi7PnyBu;
-# ... (and other data files as needed) ...
-```
-Then you need to index the product data so that they can be used by the search engine:
-```bash
-# From personalized_shopping/shared_libraries/
-cd ../search_engine
-mkdir -p resources_100 resources_1k resources_10k resources_50k
-python convert_product_file_format.py
-
-# Index the products
-mkdir -p indexes
-bash run_indexing.sh
-cd ../../
-```
-
-## Running the Agent
-You can interact with the agent via the command line or a web interface.
-
-**Option 1: CLI**
-```bash
-adk run personalized_shopping
-```
-
-**Option 2: Web Interface**
-```bash
-cd personalized-shopping
-adk web
-```
-
-## Evaluation Architecture
-This project now features a modular, two-part evaluation system:
-
-1.  **Agent Eval Framework:** A standalone, generic framework for running evaluations using the Vertex AI Evaluation Service. This framework is located in the `agent-eval-framework/` directory and is installed as a package. It knows how to run an evaluation but has no knowledge of any specific agent.
-2.  **Personalized Shopping Agent:** This agent is now a *consumer* of the evaluation framework. It provides its own agent-specific logic (an "Adapter") and configuration to the framework.
-
-This decoupled architecture allows the evaluation framework to be reused for any agent, while the agent itself only needs to provide a small amount of glue code to be evaluated.
-
-## Running Evaluations
-There are now two ways to evaluate the agent.
-
-### 1. New: Vertex AI-based Evaluation (Recommended)
-This is the new, primary method for evaluation. It uses the `agent-eval-framework` to run evaluations against a deployed agent using the powerful metrics from the Vertex AI Evaluation Service.
-
-**Configuration:**
-
-1.  **Deploy the Agent:** You must first deploy the agent to Vertex AI Agent Engine by following the "Deployment" instructions below.
-2.  **Set Environment Variables:** Create a `.env` file in the project root and add the following, filling in your specific values:
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository-url>
+    cd <repository-name>
     ```
-    # .env file
+
+2.  **Install all dependencies:**
+    This single command installs the dependencies for all packages in the monorepo, including the `agent-eval-framework` in an editable mode.
+    ```bash
+    poetry install
+    ```
+
+3.  **Set up Environment Variables:**
+    Create a `.env` file in the project root by copying the example file:
+    ```bash
+    cp .env.example .env
+    ```
+    Now, edit the `.env` file and fill in your specific Google Cloud project details:
+    ```
+    # .env
     GCP_PROJECT_ID="your-gcp-project-id"
     GCP_REGION="your-gcp-region"
-    AGENT_ENGINE_ID="your-deployed-agent-id"
+    # This will be filled in after you deploy the agent
+    AGENT_ENGINE_ID=""
     ```
-3.  **Configure the Test:** The evaluation is configured in `eval/config.yaml`. You can change the dataset path or the metrics (`rouge`, `bleu`, etc.) in this file.
 
-**Running the Test:**
+## Running the Evaluation
 
-Execute the following command from the project root:
-```bash
-poetry run pytest -s eval/test_vertex_eval.py
-```
-This will call your live agent, compare its responses to the golden dataset, and print a table of results.
+The primary workflow demonstrated in this repository is evaluating the `personalized_shopping` agent using the `agent-eval-framework`.
 
-### 2. Original ADK-based Evaluation
-The original evaluation method provided by the ADK framework is still available. This is useful for testing local tool trajectories.
+### 1. Deploy the Agent
 
-**Running the Test:**
-```bash
-poetry run pytest eval/test_eval.py
-```
+Before you can run the evaluation, you must deploy the `personalized_shopping` agent to Vertex AI Agent Engine.
 
-## Deployment
-The personalized shopping agent sample can be deployed to Vertex AI Agent Engine.
 ```bash
 # From the project root
 cd deployment
 python3 deploy.py
 ```
-When the deployment finishes, it will print the `AGENT_ENGINE_ID` that you need for your `.env` file.
+
+This script will deploy the agent and print its `AGENT_ENGINE_ID`. **Copy this ID and paste it into your `.env` file.**
+
+### 2. Configure the Evaluation
+
+The evaluation run is configured in `eval/config.yaml`. Here you can specify:
+-   The **agent adapter** to use.
+-   The **golden dataset** for the evaluation.
+-   The **metrics** to compute (e.g., `rouge`, `bleu`, `trajectory_exact_match`).
+
+### 3. Execute the Evaluation
+
+Run the evaluation using `pytest`. This will trigger the `agent-eval-framework` to:
+1.  Read the `eval/config.yaml`.
+2.  Instantiate the `VertexAgentEngineAdapter`.
+3.  Connect to your deployed agent using the `AGENT_ENGINE_ID` from your `.env` file.
+4.  Run through the specified dataset, comparing your agent's live responses to the golden reference.
+5.  Print a table of results.
+
+```bash
+# From the project root
+poetry run pytest -s eval/test_vertex_eval.py
+```
+
+## Running the Demos
+
+This repository also includes demos for the `well_structured_system`.
+
+-   **Run the App Demo:** See the asynchronous application logic in action.
+    ```bash
+    poetry run python well_structured_system/run_app_demo.py
+    ```
+-   **Run the Evaluation Demo:** See the local evaluation pipeline for the `well_structured_system` in action.
+    ```bash
+    poetry run python well_structured_system/run_evaluation_demo.py
+    ```

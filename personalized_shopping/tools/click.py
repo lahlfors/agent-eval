@@ -1,3 +1,9 @@
+"""Provides the `click` tool for the Personalized Shopping Agent.
+
+This module defines the `click` tool, which allows the agent to interact with
+the simulated web environment by clicking on buttons.
+"""
+
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,16 +23,22 @@ from google.genai import types
 
 from ..shared_libraries.init_env import webshop_env
 
-
 async def click(button_name: str, tool_context: ToolContext) -> str:
-    """Click the button with the given name.
+    """Simulates clicking a button in the web environment.
+
+    This tool takes the name of a button, simulates a click action in the
+    `webshop_env`, and returns the new state of the web page observation.
+    It also logs the status and observation and attempts to save the resulting
+    HTML as a tool artifact.
 
     Args:
-      button_name(str): The name of the button to click.
-      tool_context(ToolContext): The function context.
+        button_name: The name or label of the button to be clicked.
+        tool_context: The context provided by the ADK, used here for saving
+                      artifacts.
 
     Returns:
-      str: The webpage after clicking the button.
+        The new web page observation (as a string) after the click action
+        has been performed.
     """
     status = {"reward": None, "done": False}
     action_string = f"click[{button_name}]"
