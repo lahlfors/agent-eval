@@ -1,3 +1,19 @@
+"""Pre-processes product data for the search engine.
+
+This script loads the raw product data from a JSON file, transforms it into a
+format suitable for indexing by a search engine, and saves the processed data
+into several smaller files.
+
+The script performs the following steps:
+1.  Loads the product data from `../data/items_shuffle.json`.
+2.  For each product, it concatenates key fields (Title, Description, etc.)
+    into a single 'contents' string.
+3.  Creates a document structure containing the product's ID, the concatenated
+    'contents', and the original product data.
+4.  Writes these documents into JSONL files of varying sizes (100, 1k, 10k,
+    and 50k records), which are used to build the search indexes.
+"""
+
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

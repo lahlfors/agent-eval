@@ -1,3 +1,22 @@
+"""Deploys the Personalized Shopping Agent to Vertex AI Agent Engine.
+
+This script handles the process of deploying the `personalized_shopping` agent
+as a live, callable service on Google Cloud Vertex AI.
+
+The script performs the following steps:
+1.  Loads necessary configuration (project ID, location, storage bucket) from
+    environment variables.
+2.  Initializes the Vertex AI SDK.
+3.  Wraps the local agent instance (`root_agent`) in an `AdkApp` object.
+4.  Packages the agent and its dependencies into a wheel file.
+5.  Calls `agent_engines.create` to deploy the application to the Vertex AI
+    Agent Engine service.
+6.  Prints the ID of the deployed agent, which is required for the evaluation
+    configuration.
+7.  Runs a simple test query against the newly deployed agent to confirm it is
+    working correctly.
+"""
+
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

@@ -1,3 +1,12 @@
+"""Core logic for orchestrating and executing agent evaluations.
+
+This module provides the main `run_evaluation` function that drives the entire
+evaluation process based on a user-provided configuration file. It handles
+everything from loading the configuration and data, to invoking the agent via
+an adapter, to running the evaluation against the Vertex AI Evaluation Service
+and printing the final results.
+"""
+
 import os
 import json
 import yaml
@@ -13,7 +22,14 @@ from google.cloud.aiplatform_v1beta1.types import (
 )
 
 def _download_gcs_file(gcs_uri: str) -> str:
-    """Downloads a file from GCS to a temporary local path."""
+    """Downloads a file from Google Cloud Storage to a temporary local path.
+
+    Args:
+        gcs_uri: The GCS URI of the file to download (e.g., "gs://bucket/file.jsonl").
+
+    Returns:
+        The local filesystem path to the downloaded temporary file.
+    """
     client = storage.Client()
     bucket_name, blob_name = gcs_uri.replace("gs://", "").split("/", 1)
     bucket = client.bucket(bucket_name)
@@ -23,24 +39,54 @@ def _download_gcs_file(gcs_uri: str) -> str:
         blob.download_to_filename(temp_file.name)
         return temp_file.name
 
-def load_class(import_str: str):
-    """Dynamically loads a class from a string path."""
+def load_class(import_str: str) -> type:
+    """Dynamically loads a class from a fully qualified string path.
+
+    This allows the framework to instantiate classes (like agent adapters)
+    that are defined in user-provided code, without needing to import them
+    directly.
+
+    Args:
+        import_str: The fully qualified import path for the class
+                    (e.g., "my_project.my_module.MyClass").
+
+    Returns:
+        The imported class object.
+    """
     module_path, class_name = import_str.rsplit('.', 1)
     module = importlib.import_module(module_path)
     return getattr(module, class_name)
 
-def _build_metrics(metrics_config: list, golden_dataset: list):
-    """Builds the list of metric objects for the EvaluationClient."""
+def _build_metrics(metrics_config: list, golden_dataset: list) -> list:
+    """Builds the list of metric objects for the Vertex AI EvaluationClient.
+
+    This function parses the metric configuration provided by the user and
+    constructs the appropriate metric objects required by the Vertex AI service.
+    It supports standard computation metrics, rubric-based metrics, and custom
+    Python functions.
+
+    Args:
+        metrics_config: A list of metric configurations from the config file.
+        golden_dataset: The loaded golden dataset, used to validate that
+                        trajectory-based metrics have the required data.
+
+    Returns:
+        A list of metric objects compatible with the Vertex AI EvaluationClient.
+
+    Raises:
+        ValueError: If an unknown metric type is specified or if a
+                    trajectory-based metric is requested without the necessary
+                    data columns in the dataset.
+    """
     metrics = []
     for metric_spec in metrics_config:
-        metric_type = metric_spec.get("type", "computation") # Default to computation
+        metric_type = metric_spec.get("type", "computation")
         metric_name = metric_spec["name"]
 
         if metric_type == "computation":
             metrics.append(evaluation_types.Metric(name=metric_name))
 
         elif metric_type == "rubric":
-            # Check for trajectory-based rubric
             if "trajectory" in metric_name and "actual_trajectory" not in golden_dataset[0]:
                  raise ValueError(f"Metric '{metric_name}' requires 'actual_trajectory' column in dataset.")
 
@@ -54,7 +100,6 @@ def _build_metrics(metrics_config: list, golden_dataset: list):
 
         elif metric_type == "custom_function":
             custom_function = load_class(metric_spec["custom_function_path"])
-            # The EvaluationClient expects a specific structure for custom functions
             custom_metric = evaluation_types.CustomMetric(
                 name=metric_name,
                 evaluation_function=custom_function
@@ -65,10 +110,30 @@ def _build_metrics(metrics_config: list, golden_dataset: list):
             raise ValueError(f"Unknown metric type: {metric_type}")
     return metrics
 
+def run_evaluation(config_path: str) -> model_evaluation_types.ModelEvaluation:
+    """Runs the full, configuration-driven evaluation pipeline.
 
-def run_evaluation(config_path: str):
-    """
-    Runs the full evaluation based on a configuration file.
+    This is the main entry point for the evaluation framework. It orchestrates
+    the entire process:
+    1. Loads environment variables and the main YAML configuration file.
+    2. Initializes the GCP environment.
+    3. Dynamically loads and instantiates the specified agent adapter.
+    4. Loads the golden dataset (from a local path or GCS).
+    5. Applies column mapping if specified.
+    6. Iterates through the dataset, calling the agent for each example.
+    7. Constructs the metric objects.
+    8. Calls the Vertex AI Evaluation Service.
+    9. Prints the results to the console.
+
+    Args:
+        config_path: The path to the main YAML configuration file.
+
+    Returns:
+        The ModelEvaluation object returned by the Vertex AI EvaluationClient,
+        which contains the detailed results of the evaluation run.
+
+    Raises:
+        EnvironmentError: If required GCP environment variables are not set.
     """
     dotenv.load_dotenv()
 
@@ -114,7 +179,6 @@ def run_evaluation(config_path: str):
             for internal_name, user_name in mapping.items():
                 if user_name in record:
                     new_record[internal_name] = record[user_name]
-            # Copy over any other columns that weren't mapped
             for key, value in record.items():
                 if key not in mapping.values():
                     new_record[key] = value
@@ -138,9 +202,7 @@ def run_evaluation(config_path: str):
     # 6. Define and Run Evaluation
     print("Running evaluation...")
     eval_client = EvaluationClient(project_id=project_id, location=location)
-
     metrics = _build_metrics(config["metrics"], golden_dataset)
-
     evaluation_run = eval_client.evaluate(
         dataset=golden_dataset,
         metrics=metrics,
@@ -151,30 +213,21 @@ def run_evaluation(config_path: str):
     )
 
     # 7. Print results
-    print("\\n--- Evaluation Results ---")
-
-    # The result object from the new client is different.
-    # We attempt to print the results in a structured way.
+    print("\n--- Evaluation Results ---")
     try:
-        # The new client may return a result object with a .metrics_table attribute
         if hasattr(evaluation_run, 'metrics_table') and evaluation_run.metrics_table is not None:
             print(evaluation_run.metrics_table)
-        # Or it may have a 'metrics' attribute that is a list of metric objects
         elif hasattr(evaluation_run, 'metrics') and evaluation_run.metrics is not None:
             for metric in evaluation_run.metrics:
                 print(f"Metric: {metric.name}")
-                # Assuming the metric object has a 'value' or similar attribute
                 if hasattr(metric, 'value'):
                     print(f"  Value: {metric.value}")
                 if hasattr(metric, 'result'):
                     print(f"  Result: {metric.result}")
-        # As a fallback, print the dictionary representation of the object
         else:
             print(vars(evaluation_run))
-
     except Exception as e:
-        print(f"Could not parse and display results automatically. Printing raw object.")
+        print(f"Could not parse and display results automatically. Printing raw object: {e}")
         print(evaluation_run)
-
 
     return evaluation_run

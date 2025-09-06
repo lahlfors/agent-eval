@@ -1,3 +1,11 @@
+"""Defines and configures the Personalized Shopping Agent.
+
+This module initializes the primary agent for the personalized shopping
+experience. It configures the agent with a specific language model, a name,
+a set of instructions from the `prompt` module, and the tools it can use
+(search and click). This agent is the central component that processes user
+requests and orchestrates tool calls to generate responses.
+"""
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +28,7 @@ from .tools.click import click
 
 from .prompt import personalized_shopping_agent_instruction
 
+# The primary agent for the personalized shopping experience.
 root_agent = Agent(
     model="gemini-2.5-flash",
     name="personalized_shopping_agent",

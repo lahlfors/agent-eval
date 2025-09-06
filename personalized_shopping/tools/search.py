@@ -1,3 +1,9 @@
+"""Provides the `search` tool for the Personalized Shopping Agent.
+
+This module defines the `search` tool, which allows the agent to perform
+keyword-based searches within the simulated web environment.
+"""
+
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,16 +23,21 @@ from google.genai import types
 
 from ..shared_libraries.init_env import webshop_env
 
-
 async def search(keywords: str, tool_context: ToolContext) -> str:
-    """Search for keywords in the webshop.
+    """Performs a keyword search in the webshop environment.
+
+    This tool takes a string of keywords, simulates a search action in the
+    `webshop_env`, and returns the new state of the web page observation, which
+    contains the search results. It also logs the status and observation and
+    attempts to save the resulting HTML as a tool artifact.
 
     Args:
-      keywords(str): The keywords to search for.
-      tool_context(ToolContext): The function context.
+        keywords: The keywords to search for in the webshop.
+        tool_context: The context provided by the ADK, used here for saving
+                      artifacts.
 
     Returns:
-      str: The search result displayed in a webpage.
+        The new web page observation (as a string) showing the search results.
     """
     status = {"reward": None, "done": False}
     action_string = f"search[{keywords}]"
