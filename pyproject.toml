@@ -6,6 +6,11 @@ authors = [{ name = "Yiwen Song", email = "yiwensong@google.com" }]
 license = "Apache License 2.0"
 readme = "README.md"
 
+[tool.poetry]
+packages = [
+    { include = "personalized_shopping" }
+]
+
 [tool.poetry.dependencies]
 python = "^3.11"
 google-cloud-aiplatform = { extras = [
