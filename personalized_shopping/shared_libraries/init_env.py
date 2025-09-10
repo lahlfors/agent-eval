@@ -48,8 +48,3 @@ def init_env(num_products: int) -> gym.Env:
     )
     return env
 
-# Global instance of the webshop environment used by the agent tools.
-num_product_items = 50000
-webshop_env = init_env(num_product_items)
-webshop_env.reset()
-print(f"Finished initializing WebshopEnv with {num_product_items} items.")

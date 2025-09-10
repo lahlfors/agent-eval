@@ -12,4 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .envs.web_agent_text_env import WebAgentTextEnv
+# This file is intentionally left empty to prevent the eager import of the
+# local simulation environment (WebAgentTextEnv), which is not needed for the
+# deployed agent and caused import errors.
