@@ -1,9 +1,5 @@
 # The import path to the adapter class.
-agent_adapter_class: "personalized_shopping.agent_adapter.VertexAgentEngineAdapter"
-
-# Configuration for the VertexAgentEngineAdapter.
-agent_config:
-  agent_engine_id: "placeholder-id"
+agent_adapter_class: "personalized_shopping.local_agent_adapter.LocalAgentAdapter"
 
 # The path to the golden dataset.
 dataset_path: "eval/vertex_eval_data/golden_record.jsonl"
