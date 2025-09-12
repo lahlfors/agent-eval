@@ -13,6 +13,7 @@ import yaml
 import importlib
 import dotenv
 import tempfile
+import pathlib
 import pandas as pd
 import vertexai
 from vertexai import evaluation
@@ -91,7 +92,15 @@ def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, eval
 
 def run_evaluation(config_path: str):
     """Runs the full, configuration-driven evaluation pipeline."""
-    dotenv.load_dotenv()
+    # Construct path to the .env file in the project root
+    project_root = pathlib.Path(__file__).parent.parent.parent.parent
+    dotenv_path = project_root / ".env"
+
+    if dotenv_path.exists():
+        print(f"Loading environment variables from: {dotenv_path}")
+        dotenv.load_dotenv(dotenv_path=dotenv_path)
+    else:
+        print(f"Warning: .env file not found at {dotenv_path}")
 
     # 1. Load Configuration
     with open(config_path, "r") as f:
@@ -101,7 +110,9 @@ def run_evaluation(config_path: str):
     project_id = os.getenv("GCP_PROJECT_ID")
     location = os.getenv("GCP_REGION")
     if not project_id or not location:
-        raise EnvironmentError("GCP_PROJECT_ID and GCP_REGION must be set.")
+        raise EnvironmentError(
+            "GCP_PROJECT_ID and GCP_REGION must be set in the .env file at the project root."
+        )
     vertexai.init(project=project_id, location=location)
     print(f"Vertex AI initialized for project: {project_id}, location: {location}")
 

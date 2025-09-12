@@ -18,4 +18,4 @@ import torch
 torch.classes.__path__ = []
 
 from .shared_libraries.init_env import init_env, webshop_env
-from . import agent
+from .agent import root_agent
