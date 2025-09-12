@@ -13,70 +13,44 @@ import yaml
 import importlib
 import dotenv
 import tempfile
-from google.cloud import aiplatform
+import pandas as pd
+import vertexai
+from vertexai import evaluation
 from google.cloud import storage
-from vertexai.preview.language_models import EvaluationClient
-from google.cloud.aiplatform_v1beta1.types import (
-    evaluation as evaluation_types,
-    model_evaluation as model_evaluation_types,
-)
+from typing import List, Dict, Any, Union
+
+# Properly load the class
+def load_class(import_str: str) -> type:
+    """Dynamically loads a class from a fully qualified string path."""
+    module_path, class_name = import_str.rsplit('.', 1)
+    try:
+        module = importlib.import_module(module_path)
+        return getattr(module, class_name)
+    except (ImportError, AttributeError) as e:
+        raise ImportError(f"Could not load class {import_str}: {e}")
 
 def _download_gcs_file(gcs_uri: str) -> str:
-    """Downloads a file from Google Cloud Storage to a temporary local path.
+    """Downloads a file from Google Cloud Storage to a temporary local path."""
+    try:
+        client = storage.Client()
+        bucket_name, blob_name = gcs_uri.replace("gs://", "").split("/", 1)
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
 
-    Args:
-        gcs_uri: The GCS URI of the file to download (e.g., "gs://bucket/file.jsonl").
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jsonl") as temp_file:
+            blob.download_to_filename(temp_file.name)
+            return temp_file.name
+    except Exception as e:
+        raise RuntimeError(f"Failed to download {gcs_uri}: {e}")
 
-    Returns:
-        The local filesystem path to the downloaded temporary file.
-    """
-    client = storage.Client()
-    bucket_name, blob_name = gcs_uri.replace("gs://", "").split("/", 1)
-    bucket = client.bucket(bucket_name)
-    blob = bucket.blob(blob_name)
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".jsonl") as temp_file:
-        blob.download_to_filename(temp_file.name)
-        return temp_file.name
-
-def load_class(import_str: str) -> type:
-    """Dynamically loads a class from a fully qualified string path.
-
-    This allows the framework to instantiate classes (like agent adapters)
-    that are defined in user-provided code, without needing to import them
-    directly.
-
-    Args:
-        import_str: The fully qualified import path for the class
-                    (e.g., "my_project.my_module.MyClass").
-
-    Returns:
-        The imported class object.
-    """
-    module_path, class_name = import_str.rsplit('.', 1)
-    module = importlib.import_module(module_path)
-    return getattr(module, class_name)
-
-def _build_metrics(metrics_config: list, golden_dataset: list) -> list:
-    """Builds the list of metric objects for the Vertex AI EvaluationClient.
-
-    This function parses the metric configuration provided by the user and
-    constructs the appropriate metric objects required by the Vertex AI service.
-    It supports standard computation metrics, rubric-based metrics, and custom
-    Python functions.
+def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, evaluation.CustomMetric, evaluation.PointwiseMetric, evaluation.PairwiseMetric]]:
+    """Builds the list of metric objects for the vertexai.evaluation.EvalTask.
 
     Args:
         metrics_config: A list of metric configurations from the config file.
-        golden_dataset: The loaded golden dataset, used to validate that
-                        trajectory-based metrics have the required data.
 
     Returns:
-        A list of metric objects compatible with the Vertex AI EvaluationClient.
-
-    Raises:
-        ValueError: If an unknown metric type is specified or if a
-                    trajectory-based metric is requested without the necessary
-                    data columns in the dataset.
+        A list of metric objects compatible with EvalTask.
     """
     metrics = []
     for metric_spec in metrics_config:
@@ -84,57 +58,39 @@ def _build_metrics(metrics_config: list, golden_dataset: list) -> list:
         metric_name = metric_spec["name"]
 
         if metric_type == "computation":
-            metrics.append(evaluation_types.Metric(name=metric_name))
+            # Built-in computation metrics are passed as strings
+            metrics.append(metric_name)
+        elif metric_type == "pointwise":
+            metric_prompt_template = metric_spec.get("metric_prompt_template")
+            if not metric_prompt_template:
+                 # Try to load from examples if template not provided
+                 try:
+                     metric_prompt_template = evaluation.MetricPromptTemplateExamples.get_prompt_template(metric_name)
+                 except ValueError:
+                     raise ValueError(f"Pointwise metric '{metric_name}' needs a 'metric_prompt_template' or be a valid example name.")
 
-        elif metric_type == "rubric":
-            if "trajectory" in metric_name and "actual_trajectory" not in golden_dataset[0]:
-                 raise ValueError(f"Metric '{metric_name}' requires 'actual_trajectory' column in dataset.")
-
-            rubric = evaluation_types.RubricMetric(
-                name=metric_name,
-                predefined_spec_name=metric_spec.get("predefined_spec_name"),
-                metric_spec_parameters=metric_spec.get("metric_spec_parameters"),
-                version=metric_spec.get("version"),
-            )
-            metrics.append(rubric)
-
+            metrics.append(evaluation.PointwiseMetric(
+                metric=metric_name,
+                metric_prompt_template=metric_prompt_template,
+                rating_rubric=metric_spec.get("rating_rubric", {}),
+                input_variables=metric_spec.get("input_variables"),
+            ))
+        elif metric_type == "pairwise":
+             # PairwiseMetric requires more complex setup, potentially including a baseline model
+             # This is a placeholder, actual implementation depends on config structure
+             raise NotImplementedError("Pairwise metric configuration not fully implemented in this refactor.")
         elif metric_type == "custom_function":
             custom_function = load_class(metric_spec["custom_function_path"])
-            custom_metric = evaluation_types.CustomMetric(
+            metrics.append(evaluation.CustomMetric(
                 name=metric_name,
-                evaluation_function=custom_function
-            )
-            metrics.append(custom_metric)
-
+                metric_function=custom_function
+            ))
         else:
             raise ValueError(f"Unknown metric type: {metric_type}")
     return metrics
 
-def run_evaluation(config_path: str) -> model_evaluation_types.ModelEvaluation:
-    """Runs the full, configuration-driven evaluation pipeline.
-
-    This is the main entry point for the evaluation framework. It orchestrates
-    the entire process:
-    1. Loads environment variables and the main YAML configuration file.
-    2. Initializes the GCP environment.
-    3. Dynamically loads and instantiates the specified agent adapter.
-    4. Loads the golden dataset (from a local path or GCS).
-    5. Applies column mapping if specified.
-    6. Iterates through the dataset, calling the agent for each example.
-    7. Constructs the metric objects.
-    8. Calls the Vertex AI Evaluation Service.
-    9. Prints the results to the console.
-
-    Args:
-        config_path: The path to the main YAML configuration file.
-
-    Returns:
-        The ModelEvaluation object returned by the Vertex AI EvaluationClient,
-        which contains the detailed results of the evaluation run.
-
-    Raises:
-        EnvironmentError: If required GCP environment variables are not set.
-    """
+def run_evaluation(config_path: str):
+    """Runs the full, configuration-driven evaluation pipeline."""
     dotenv.load_dotenv()
 
     # 1. Load Configuration
@@ -146,7 +102,8 @@ def run_evaluation(config_path: str) -> model_evaluation_types.ModelEvaluation:
     location = os.getenv("GCP_REGION")
     if not project_id or not location:
         raise EnvironmentError("GCP_PROJECT_ID and GCP_REGION must be set.")
-    aiplatform.init(project=project_id, location=location)
+    vertexai.init(project=project_id, location=location)
+    print(f"Vertex AI initialized for project: {project_id}, location: {location}")
 
     # 3. Instantiate Agent Adapter
     agent_engine_id_from_env = os.getenv("AGENT_ENGINE_ID")
@@ -170,64 +127,66 @@ def run_evaluation(config_path: str) -> model_evaluation_types.ModelEvaluation:
     if dataset_path.startswith("gs://"):
         os.remove(local_dataset_path)
 
+    df_dataset = pd.DataFrame(golden_dataset)
+
     # 4a. Apply Column Mapping if provided
-    if "column_mapping" in config:
-        mapping = config["column_mapping"]
-        new_dataset = []
-        for record in golden_dataset:
-            new_record = {}
-            for internal_name, user_name in mapping.items():
-                if user_name in record:
-                    new_record[internal_name] = record[user_name]
-            for key, value in record.items():
-                if key not in mapping.values():
-                    new_record[key] = value
-            new_dataset.append(new_record)
-        golden_dataset = new_dataset
-        print(f"Applied column mapping: {mapping}")
+    column_mapping = config.get("column_mapping", {})
+    df_dataset.rename(columns=column_mapping, inplace=True)
+    print(f"Applied column mapping: {column_mapping}")
 
     # 5. Generate Actual Responses and Trajectories
     print("Generating agent responses...")
-    for record in golden_dataset:
+    actual_responses = []
+    # actual_trajectories = [] # If trajectories are produced
+
+    for index, record in df_dataset.iterrows():
         prompt = record.get("prompt")
         try:
+            # Assuming adapter.get_response returns a dict like {"actual_response": "...", "actual_trajectory": ...}
             response_data = adapter.get_response(prompt)
-            record["actual_response"] = response_data.get("actual_response", "")
-            record["actual_trajectory"] = response_data.get("actual_trajectory", [])
+            actual_responses.append(response_data.get("actual_response", "NO_RESPONSE"))
+            # if "actual_trajectory" in response_data:
+            #     actual_trajectories.append(response_data["actual_trajectory"])
         except Exception as e:
             print(f"ERROR: Adapter failed for prompt '{prompt}': {e}")
-            record["actual_response"] = "AGENT_EXECUTION_ERROR"
-            record["actual_trajectory"] = []
+            actual_responses.append("AGENT_EXECUTION_ERROR")
+            # actual_trajectories.append([])
 
-    # 6. Define and Run Evaluation
-    print("Running evaluation...")
-    eval_client = EvaluationClient(project_id=project_id, location=location)
-    metrics = _build_metrics(config["metrics"], golden_dataset)
-    evaluation_run = eval_client.evaluate(
-        dataset=golden_dataset,
+    df_dataset["actual_response"] = actual_responses
+    # if actual_trajectories:
+    #     df_dataset["actual_trajectory"] = actual_trajectories
+
+    # 6. Define and Run Evaluation using EvalTask
+    print("Running evaluation using vertexai.evaluation.EvalTask...")
+    metrics = _build_metrics(config["metrics"])
+    eval_task = evaluation.EvalTask(
+        dataset=df_dataset,
         metrics=metrics,
-        response_column="actual_response",
-        reference_column="reference_response" if "reference_response" in golden_dataset[0] else None,
-        trajectory_column="actual_trajectory" if "actual_trajectory" in golden_dataset[0] else None,
-        reference_trajectory_column="reference_trajectory" if "reference_trajectory" in golden_dataset[0] else None,
+        experiment=config.get("experiment_name", "agent-eval-framework-run")
+    )
+
+    # Column names for EvalTask.evaluate()
+    response_column_name = "actual_response"
+    reference_column_name = config.get("column_mapping", {}).get("reference_response", "reference_response")
+    if reference_column_name not in df_dataset.columns:
+        reference_column_name = None
+        print(f"Warning: '{reference_column_name}' not found, not passing reference column.")
+
+    # Add other column mappings as needed
+
+    eval_result = eval_task.evaluate(
+        response_column_name=response_column_name,
+        # baseline_model_response_column_name= ...
+        # experiment_run_name= ...
     )
 
     # 7. Print results
     print("\n--- Evaluation Results ---")
-    try:
-        if hasattr(evaluation_run, 'metrics_table') and evaluation_run.metrics_table is not None:
-            print(evaluation_run.metrics_table)
-        elif hasattr(evaluation_run, 'metrics') and evaluation_run.metrics is not None:
-            for metric in evaluation_run.metrics:
-                print(f"Metric: {metric.name}")
-                if hasattr(metric, 'value'):
-                    print(f"  Value: {metric.value}")
-                if hasattr(metric, 'result'):
-                    print(f"  Result: {metric.result}")
-        else:
-            print(vars(evaluation_run))
-    except Exception as e:
-        print(f"Could not parse and display results automatically. Printing raw object: {e}")
-        print(evaluation_run)
+    print("Summary Metrics:")
+    print(eval_result.summary_metrics)
 
-    return evaluation_run
+    print("\nMetrics Table:")
+    from IPython.display import display
+    display(eval_result.metrics_table)
+
+    return eval_result

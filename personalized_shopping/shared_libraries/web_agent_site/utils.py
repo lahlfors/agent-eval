@@ -21,8 +21,8 @@ import random
 BASE_DIR = dirname(abspath(__file__))
 DEBUG_PROD_SIZE = None  # set to `None` to disable
 
-DEFAULT_ATTR_PATH = join(BASE_DIR, "../data/items_ins_v2.json")
-DEFAULT_FILE_PATH = join(BASE_DIR, "../data/items_shuffle.json")
+DEFAULT_ATTR_PATH = join(BASE_DIR, "../data/items_ins_v2_1000.json")
+DEFAULT_FILE_PATH = join(BASE_DIR, "../data/items_shuffle_1000.json")
 
 DEFAULT_REVIEW_PATH = join(BASE_DIR, "../data/reviews.json")
 

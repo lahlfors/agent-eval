@@ -36,7 +36,7 @@ sys.path.insert(0, "../")
 
 from web_agent_site.engine.engine import load_products
 
-all_products, *_ = load_products(filepath="../data/items_shuffle.json")
+all_products, *_ = load_products(filepath="../data/items_shuffle_1000.json")
 
 docs = []
 for p in tqdm(all_products, total=len(all_products)):
@@ -60,18 +60,6 @@ for p in tqdm(all_products, total=len(all_products)):
     doc["product"] = p
     docs.append(doc)
 
-with open("./resources_100/documents.jsonl", "w+") as f:
-    for doc in docs[:100]:
-        f.write(json.dumps(doc) + "\n")
-
 with open("./resources_1k/documents.jsonl", "w+") as f:
     for doc in docs[:1000]:
-        f.write(json.dumps(doc) + "\n")
-
-with open("./resources_10k/documents.jsonl", "w+") as f:
-    for doc in docs[:10000]:
-        f.write(json.dumps(doc) + "\n")
-
-with open("./resources_50k/documents.jsonl", "w+") as f:
-    for doc in docs[:50000]:
         f.write(json.dumps(doc) + "\n")
