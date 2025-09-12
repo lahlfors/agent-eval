@@ -18,21 +18,31 @@ import os
 import uuid
 from typing import Any, Dict, List
 
-from google.adk.evaluation.agent_evaluator import AgentEvaluator  # Corrected
+from google.adk.evaluation.agent_evaluator import AgentEvaluator
 from google.adk.evaluation.eval_case import EvalCase, Invocation
-from google.adk.evaluation.eval_set import EvalSet  # Corrected
+from google.adk.evaluation.eval_set import EvalSet
 from google.genai import types as genai_types
 
 # Define the evaluation criteria from the config file.
-CRITERIA = json.load(open("eval/test_config.json"))
+try:
+    with open("eval/test_config.json", "r") as f:
+        CRITERIA = json.load(f).get("criteria", {})
+except FileNotFoundError:
+    print("Warning: eval/test_config.json not found. Using empty criteria.")
+    CRITERIA = {}
+
 
 def create_invocation(data: Dict[str, Any]) -> Invocation:
     """Creates an Invocation object from a dictionary from the JSONL line."""
-    user_content = genai_types.Content(parts=[genai_types.Part(text=data.get("query", ""))], role="user")
+    user_content = genai_types.Content(
+        parts=[genai_types.Part(text=data.get("query", ""))], role="user"
+    )
 
     final_response = None
     if "reference_answer" in data and data["reference_answer"]:
-        final_response = genai_types.Content(parts=[genai_types.Part(text=data["reference_answer"])], role="model")
+        final_response = genai_types.Content(
+            parts=[genai_types.Part(text=data["reference_answer"])], role="model"
+        )
 
     tool_uses = data.get("expected_tool_use", [])
 
@@ -48,9 +58,14 @@ def create_invocation(data: Dict[str, Any]) -> Invocation:
         intermediate_data=intermediate_data
     )
 
+
 def load_eval_cases(data_dir: str) -> List[EvalCase]:
     """Loads all evaluation data from .jsonl files in a directory and creates EvalCase objects."""
     all_cases = []
+    if not os.path.exists(data_dir):
+        print(f"Error: Data directory not found: {data_dir}")
+        return []
+
     for filename in os.listdir(data_dir):
         if filename.endswith(".jsonl"):
             filepath = os.path.join(data_dir, filename)
@@ -71,6 +86,7 @@ def load_eval_cases(data_dir: str) -> List[EvalCase]:
                         print(f"Error processing line {line_num} in {filename}: {e}")
     return all_cases
 
+
 def test_eval():
     """Runs the agent evaluation using the loaded data and criteria."""
     eval_cases = load_eval_cases("eval/eval_data")
@@ -86,10 +102,10 @@ def test_eval():
     )
 
     result = asyncio.run(
-        AgentEvaluator.evaluate(
-            agent_module="personalized_shopping.agent", # Pointing to agent.py
-            dataset=eval_set,
-            criteria=CRITERIA.get("criteria", {}),
+        AgentEvaluator.evaluate_eval_set(  # *** CORRECTED METHOD HERE ***
+            agent_module="personalized_shopping.agent",  # Pointing to agent.py
+            eval_set=eval_set,  # Passing the EvalSet object
+            criteria=CRITERIA,  # Pass the criteria dict directly
             num_runs=1,
             print_detailed_results=True,
         )
