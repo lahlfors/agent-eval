@@ -1,10 +1,12 @@
-"""Core logic for orchestrating and executing agent evaluations.
+# agent-eval-framework/src/agent_eval_framework/runner.py
 
-This module provides the main `run_evaluation` function that drives the entire
+"""Core logic for orchestrating and executing agent evaluations using the GenAI Client.
+
+This module provides the main run_evaluation function that drives the entire
 evaluation process based on a user-provided configuration file. It handles
-everything from loading the configuration and data, to invoking the agent via
-an adapter, to running the evaluation against the Vertex AI Evaluation Service
-and printing the final results.
+everything from loading the configuration and data, to invoking the agent
+via an adapter, to running the evaluation against the Vertex AI Evaluation
+Service and printing the final results.
 """
 
 import os
@@ -13,14 +15,13 @@ import yaml
 import importlib
 import dotenv
 import tempfile
-import pathlib
 import pandas as pd
 import vertexai
-from vertexai import evaluation
+from vertexai import types as vertex_types  # Using vertex_types alias
 from google.cloud import storage
 from typing import List, Dict, Any, Union
+import pathlib
 
-# Properly load the class
 def load_class(import_str: str) -> type:
     """Dynamically loads a class from a fully qualified string path."""
     module_path, class_name = import_str.rsplit('.', 1)
@@ -44,14 +45,14 @@ def _download_gcs_file(gcs_uri: str) -> str:
     except Exception as e:
         raise RuntimeError(f"Failed to download {gcs_uri}: {e}")
 
-def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, evaluation.CustomMetric, evaluation.PointwiseMetric, evaluation.PairwiseMetric]]:
-    """Builds the list of metric objects for the vertexai.evaluation.EvalTask.
+def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Any]:
+    """Builds the list of metric objects for the vertexai.Client.evals.evaluate.
 
     Args:
         metrics_config: A list of metric configurations from the config file.
 
     Returns:
-        A list of metric objects compatible with EvalTask.
+        A list of metric objects compatible with client.evals.evaluate.
     """
     metrics = []
     for metric_spec in metrics_config:
@@ -59,32 +60,38 @@ def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, eval
         metric_name = metric_spec["name"]
 
         if metric_type == "computation":
-            # Built-in computation metrics are passed as strings
-            metrics.append(metric_name)
+            # Built-in computation metrics
+            metrics.append(vertex_types.Metric(name=metric_name))
         elif metric_type == "pointwise":
-            metric_prompt_template = metric_spec.get("metric_prompt_template")
-            if not metric_prompt_template:
-                 # Try to load from examples if template not provided
-                 try:
-                     metric_prompt_template = evaluation.MetricPromptTemplateExamples.get_prompt_template(metric_name)
-                 except ValueError:
-                     raise ValueError(f"Pointwise metric '{metric_name}' needs a 'metric_prompt_template' or be a valid example name.")
+            # LLM-based rubric metrics
+            try:
+                # Try to get a predefined rubric metric
+                rubric_metric = getattr(vertex_types.RubricMetric, metric_name.upper())
+                metrics.append(rubric_metric)
+            except AttributeError:
+                # If not predefined, treat as custom LLM metric
+                metric_prompt_template = metric_spec.get("metric_prompt_template")
+                if not metric_prompt_template:
+                    raise ValueError(f"Pointwise metric '{metric_name}' needs 'metric_prompt_template' or be a predefined RubricMetric.")
 
-            metrics.append(evaluation.PointwiseMetric(
-                metric=metric_name,
-                metric_prompt_template=metric_prompt_template,
-                rating_rubric=metric_spec.get("rating_rubric", {}),
-                input_variables=metric_spec.get("input_variables"),
-            ))
-        elif metric_type == "pairwise":
-             # PairwiseMetric requires more complex setup, potentially including a baseline model
-             # This is a placeholder, actual implementation depends on config structure
-             raise NotImplementedError("Pairwise metric configuration not fully implemented in this refactor.")
+                # Build prompt template if needed
+                if isinstance(metric_prompt_template, dict):
+                    prompt_builder = vertex_types.MetricPromptBuilder(
+                        instruction=metric_prompt_template.get("instruction", ""),
+                        criteria=metric_prompt_template.get("criteria", {}),
+                        rating_scores=metric_prompt_template.get("rating_scores", {})
+                    )
+                    metric_prompt_template = prompt_builder
+
+                metrics.append(vertex_types.LLMMetric(
+                    name=metric_name,
+                    prompt_template=metric_prompt_template
+                ))
         elif metric_type == "custom_function":
             custom_function = load_class(metric_spec["custom_function_path"])
-            metrics.append(evaluation.CustomMetric(
+            metrics.append(vertex_types.Metric(
                 name=metric_name,
-                metric_function=custom_function
+                custom_function=custom_function
             ))
         else:
             raise ValueError(f"Unknown metric type: {metric_type}")
@@ -110,11 +117,10 @@ def run_evaluation(config_path: str):
     project_id = os.getenv("GCP_PROJECT_ID")
     location = os.getenv("GCP_REGION")
     if not project_id or not location:
-        raise EnvironmentError(
-            "GCP_PROJECT_ID and GCP_REGION must be set in the .env file at the project root."
-        )
-    vertexai.init(project=project_id, location=location)
-    print(f"Vertex AI initialized for project: {project_id}, location: {location}")
+        raise EnvironmentError("GCP_PROJECT_ID and GCP_REGION must be set.")
+
+    client = vertexai.Client(project=project_id, location=location)
+    print(f"Vertex AI Client initialized for project: {project_id}, location: {location}")
 
     # 3. Instantiate Agent Adapter
     agent_engine_id_from_env = os.getenv("AGENT_ENGINE_ID")
@@ -135,7 +141,7 @@ def run_evaluation(config_path: str):
     with open(local_dataset_path, "r") as f:
         golden_dataset = [json.loads(line) for line in f]
 
-    if dataset_path.startswith("gs://"):
+    if dataset_path.startswith("gs://") and os.path.exists(local_dataset_path):
         os.remove(local_dataset_path)
 
     df_dataset = pd.DataFrame(golden_dataset)
@@ -148,56 +154,48 @@ def run_evaluation(config_path: str):
     # 5. Generate Actual Responses and Trajectories
     print("Generating agent responses...")
     actual_responses = []
-    # actual_trajectories = [] # If trajectories are produced
-
     for index, record in df_dataset.iterrows():
         prompt = record.get("prompt")
         try:
-            # Assuming adapter.get_response returns a dict like {"actual_response": "...", "actual_trajectory": ...}
             response_data = adapter.get_response(prompt)
             actual_responses.append(response_data.get("actual_response", "NO_RESPONSE"))
-            # if "actual_trajectory" in response_data:
-            #     actual_trajectories.append(response_data["actual_trajectory"])
         except Exception as e:
             print(f"ERROR: Adapter failed for prompt '{prompt}': {e}")
             actual_responses.append("AGENT_EXECUTION_ERROR")
-            # actual_trajectories.append([])
 
-    df_dataset["actual_response"] = actual_responses
-    # if actual_trajectories:
-    #     df_dataset["actual_trajectory"] = actual_trajectories
+    df_dataset["response"] = actual_responses # Default column name for client.evals.evaluate
 
-    # 6. Define and Run Evaluation using EvalTask
-    print("Running evaluation using vertexai.evaluation.EvalTask...")
+    # 6. Define and Run Evaluation using GenAI Client
+    print("Running evaluation using vertexai.Client.evals...")
     metrics = _build_metrics(config["metrics"])
-    eval_task = evaluation.EvalTask(
+
+    if not metrics:
+        print("Warning: No metrics configured for evaluation.")
+        return None
+
+    # Determine column names
+    reference_column = config.get("column_mapping", {}).get("reference", "reference")
+    if reference_column not in df_dataset.columns:
+        print(f"Warning: Reference column '{reference_column}' not found in dataset.")
+        reference_column = None
+
+    eval_result = client.evals.evaluate(
         dataset=df_dataset,
         metrics=metrics,
-        experiment=config.get("experiment_name", "agent-eval-framework-run")
-    )
-
-    # Column names for EvalTask.evaluate()
-    response_column_name = "actual_response"
-    reference_column_name = config.get("column_mapping", {}).get("reference_response", "reference_response")
-    if reference_column_name not in df_dataset.columns:
-        reference_column_name = None
-        print(f"Warning: '{reference_column_name}' not found, not passing reference column.")
-
-    # Add other column mappings as needed
-
-    eval_result = eval_task.evaluate(
-        response_column_name=response_column_name,
-        # baseline_model_response_column_name= ...
-        # experiment_run_name= ...
+        reference_column=reference_column
     )
 
     # 7. Print results
     print("\n--- Evaluation Results ---")
-    print("Summary Metrics:")
-    print(eval_result.summary_metrics)
-
-    print("\nMetrics Table:")
-    from IPython.display import display
-    display(eval_result.metrics_table)
+    try:
+        from IPython.display import display
+        print("Displaying results in notebook format...")
+        eval_result.show()
+    except ImportError:
+        print("IPython not available, printing tables to console.")
+        print("Summary Metrics:")
+        print(eval_result.summary_metrics)
+        print("\nMetrics Table:")
+        print(eval_result.metrics_table.to_string())
 
     return eval_result
