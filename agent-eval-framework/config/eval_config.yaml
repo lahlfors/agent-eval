@@ -1,0 +1,22 @@
+agent_adapter_class: "agent_eval_framework.adapters.personalized_shopping_adapter.PersonalizedShoppingAdapter"
+agent_config:
+  agent_module_path: "personalized_shopping.agent"
+
+dataset_path: "data/simple.test.jsonl" # Relative to framework root
+
+column_mapping:
+  query: "prompt"
+  reference: "reference_response"
+
+prompt_column: "prompt"
+target_column: "reference_response"
+
+metrics:
+  - name: "exact_match"
+    type: "computation"
+  - name: "bleu"
+    type: "computation"
+  # - name: "coherence"
+  #   type: "pointwise"
+
+experiment_name: "personalized-shopping-evals"
