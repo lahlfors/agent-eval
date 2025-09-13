@@ -14,7 +14,6 @@ from typing import List, Dict, Any, Union
 import pathlib
 from IPython.display import display
 
-# Properly load the class
 def load_class(import_str: str) -> type:
     """Dynamically loads a class from a fully qualified string path."""
     module_path, class_name = import_str.rsplit('.', 1)
@@ -39,25 +38,16 @@ def _download_gcs_file(gcs_uri: str) -> str:
         raise RuntimeError(f"Failed to download {gcs_uri}: {e}")
 
 def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Any]:
-    """Builds the list of metric objects for the evaluation.EvalTask.
-
-    Args:
-        metrics_config: A list of metric configurations from the config file.
-
-    Returns:
-        A list of metric objects compatible with evaluation.EvalTask.
-    """
+    """Builds the list of metric objects for the evaluation.EvalTask."""
     metrics = []
     for metric_spec in metrics_config:
         metric_type = metric_spec.get("type", "computation")
         metric_name = metric_spec["name"]
 
         if metric_type == "computation":
-            # Built-in computation metrics are passed as strings
             metrics.append(metric_name)
         elif metric_type == "pointwise":
             metric_prompt_template = metric_spec.get("metric_prompt_template")
-            # Example: loading from library
             if not metric_prompt_template and metric_spec.get("use_example_template", False):
                  try:
                      metric_prompt_template = evaluation.MetricPromptTemplateExamples.get_prompt_template(metric_name)
@@ -84,15 +74,8 @@ def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Any]:
 
 def run_evaluation(config_path: str):
     """Runs the full, configuration-driven evaluation pipeline."""
-    # Construct path to the .env file in the project root
-    project_root = pathlib.Path(__file__).parent.parent.parent.parent
-    dotenv_path = project_root / ".env"
-
-    if dotenv_path.exists():
-        print(f"Loading environment variables from: {dotenv_path}")
-        dotenv.load_dotenv(dotenv_path=dotenv_path)
-    else:
-        print(f"Warning: .env file not found at {dotenv_path}")
+    # .env loading: Assume it's in the CWD (project root)
+    dotenv.load_dotenv()
 
     # 1. Load Configuration
     with open(config_path, "r") as f:
@@ -121,23 +104,28 @@ def run_evaluation(config_path: str):
         print(f"Downloading dataset from GCS: {dataset_path}")
         local_dataset_path = _download_gcs_file(dataset_path)
     else:
+        # Path is relative to the project root (CWD)
         local_dataset_path = dataset_path
+
+    print(f"Attempting to load dataset from: {os.path.abspath(local_dataset_path)}")
+    if not os.path.exists(local_dataset_path):
+        raise FileNotFoundError(f"[Errno 2] No such file or directory: '{os.path.abspath(local_dataset_path)}'")
 
     with open(local_dataset_path, "r") as f:
         golden_dataset = [json.loads(line) for line in f]
 
-    if dataset_path.startswith("gs://") and os.path.exists(local_dataset_path):
+    if config["dataset_path"].startswith("gs://") and os.path.exists(local_dataset_path):
         os.remove(local_dataset_path)
 
     df_dataset = pd.DataFrame(golden_dataset)
 
-    # 4a. Apply Column Mapping if provided
+    # 4a. Apply Column Mapping
     column_mapping = config.get("column_mapping", {})
     df_dataset.rename(columns=column_mapping, inplace=True)
     print(f"Applied column mapping: {column_mapping}")
     print(f"Dataset columns after mapping: {df_dataset.columns.tolist()}")
 
-    # 5. Generate Actual Responses and Trajectories
+    # 5. Generate Actual Responses
     print("Generating agent responses...")
     actual_responses = []
     for index, record in df_dataset.iterrows():
@@ -153,7 +141,6 @@ def run_evaluation(config_path: str):
             print(f"ERROR: Adapter failed for prompt '{prompt}': {e}")
             actual_responses.append("AGENT_EXECUTION_ERROR")
 
-    # This column will be used by EvalTask.evaluate
     df_dataset["response"] = actual_responses
 
     # 6. Define and Run Evaluation using EvalTask
@@ -170,8 +157,6 @@ def run_evaluation(config_path: str):
         experiment=config.get("experiment_name", "agent-eval-framework-run")
     )
 
-    # For BYOR, column names are expected to be in the DataFrame.
-    # 'response' for the generated text, 'reference' for the ground truth.
     eval_result = eval_task.evaluate(
         experiment_run_name=config.get("experiment_run_name", "run-" + pd.Timestamp.now().strftime("%Y%m%d%H%M%S"))
     )

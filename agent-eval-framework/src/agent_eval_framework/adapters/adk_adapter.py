@@ -2,7 +2,7 @@
 import asyncio
 import importlib
 from typing import Any, Dict
-from google.adk.apps import AdkApp
+from vertexai.preview.reasoning_engines import AdkApp
 from google.genai import types as genai_types
 import types as python_types
 
