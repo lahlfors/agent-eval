@@ -1,3 +1,19 @@
+"""Pre-processes product data for the search engine.
+
+This script loads the raw product data from a JSON file, transforms it into a
+format suitable for indexing by a search engine, and saves the processed data
+into several smaller files.
+
+The script performs the following steps:
+1.  Loads the product data from `../data/items_shuffle.json`.
+2.  For each product, it concatenates key fields (Title, Description, etc.)
+    into a single 'contents' string.
+3.  Creates a document structure containing the product's ID, the concatenated
+    'contents', and the original product data.
+4.  Writes these documents into JSONL files of varying sizes (100, 1k, 10k,
+    and 50k records), which are used to build the search indexes.
+"""
+
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +36,7 @@ sys.path.insert(0, "../")
 
 from web_agent_site.engine.engine import load_products
 
-all_products, *_ = load_products(filepath="../data/items_shuffle.json")
+all_products, *_ = load_products(filepath="../data/items_shuffle_1000.json")
 
 docs = []
 for p in tqdm(all_products, total=len(all_products)):
@@ -44,18 +60,6 @@ for p in tqdm(all_products, total=len(all_products)):
     doc["product"] = p
     docs.append(doc)
 
-with open("./resources_100/documents.jsonl", "w+") as f:
-    for doc in docs[:100]:
-        f.write(json.dumps(doc) + "\n")
-
 with open("./resources_1k/documents.jsonl", "w+") as f:
     for doc in docs[:1000]:
-        f.write(json.dumps(doc) + "\n")
-
-with open("./resources_10k/documents.jsonl", "w+") as f:
-    for doc in docs[:10000]:
-        f.write(json.dumps(doc) + "\n")
-
-with open("./resources_50k/documents.jsonl", "w+") as f:
-    for doc in docs[:50000]:
         f.write(json.dumps(doc) + "\n")

@@ -1,3 +1,12 @@
+"""Contains the detailed instructional prompt for the Personalized Shopping Agent.
+
+This module stores the main instruction string that defines the agent's
+persona, capabilities, and rules of engagement. This prompt is a critical
+component that guides the language model on how to behave, how to interact
+with the user, and how to use its tools to accomplish its goals in a
+step-by-step, interactive manner.
+"""
+
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

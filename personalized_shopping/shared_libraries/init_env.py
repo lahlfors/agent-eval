@@ -1,3 +1,12 @@
+"""Initializes and configures the web shopping simulation environment.
+
+This module is responsible for setting up the `WebAgentTextEnv`, a custom Gym
+environment that simulates a text-based web shopping experience. It registers
+the environment with Gym, provides a function to initialize it, and creates a
+global instance of the environment (`webshop_env`) that can be imported and
+used by the agent's tools.
+"""
+
 # Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +23,7 @@
 
 import gym
 
+# Register the custom web environment with Gym if it's not already registered.
 gym.envs.registration.register(
     id="WebAgentTextEnv-v0",
     entry_point=(
@@ -21,8 +31,16 @@ gym.envs.registration.register(
     ),
 )
 
+def init_env(num_products: int) -> gym.Env:
+    """Initializes the web shopping Gym environment.
 
-def init_env(num_products):
+    Args:
+        num_products: The number of products to load into the environment's
+                      database.
+
+    Returns:
+        An instance of the WebAgentTextEnv Gym environment.
+    """
     env = gym.make(
         "WebAgentTextEnv-v0",
         observation_mode="text",
@@ -30,7 +48,7 @@ def init_env(num_products):
     )
     return env
 
-
+# Global instance of the webshop environment used by the agent tools.
 num_product_items = 50000
 webshop_env = init_env(num_product_items)
 webshop_env.reset()
