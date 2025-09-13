@@ -19,3 +19,5 @@ torch.classes.__path__ = []
 
 from .shared_libraries.init_env import init_env, webshop_env
 from .agent import root_agent
+
+__all__ = ["root_agent"]

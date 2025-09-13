@@ -20,6 +20,8 @@ dependencies = [
     "google-cloud-aiplatform>=1.0",
     "PyYAML>=6.0",
     "python-dotenv>=1.0",
+    "pandas>=2.0.0",
+    "ipython"
 ]
 
 [project.urls]
