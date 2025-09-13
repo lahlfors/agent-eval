@@ -8,8 +8,8 @@ agent_config:
 dataset_path: "../eval/eval_data/simple.test.jsonl" # Path relative to agent-eval-framework root
 
 column_mapping:
-  prompt: "query"
-  reference: "reference_answer"
+  query: "prompt"
+  reference_answer: "reference"
 
 metrics:
   - name: "exact_match"
