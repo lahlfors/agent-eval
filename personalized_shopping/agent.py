@@ -20,6 +20,7 @@ requests and orchestrates tool calls to generate responses.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import types
 from google.adk.agents import Agent
 from google.adk.tools import FunctionTool
 
@@ -42,3 +43,8 @@ root_agent = Agent(
         ),
     ],
 )
+
+# --- WORKAROUND START ---
+# Create a namespace object called 'agent'
+agent = types.SimpleNamespace(root_agent=root_agent)
+# --- WORKAROUND END ---
