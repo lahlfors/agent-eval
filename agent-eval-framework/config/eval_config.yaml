@@ -1,0 +1,24 @@
+agent_adapter_class: "agent_eval_framework.adapters.personalized_shopping_adapter.PersonalizedShoppingAdapter"
+agent_config:
+  agent_module_path: "personalized_shopping.agent"
+
+dataset_path: "data/simple.test.jsonl" # Relative to agent-eval-framework root
+
+column_mapping:
+  query: "prompt"  # Maps 'query' from JSONL to 'prompt' in DataFrame
+  reference: "reference_response" # Maps 'reference' from JSONL to 'reference_response'
+
+prompt_column: "prompt" # Column to use as input to the agent
+target_column: "reference_response" # Column to use as the ground truth response
+
+metrics:
+  - name: "exact_match"
+    type: "computation"
+  - name: "bleu"
+    type: "computation"
+  - name: "rouge"
+    type: "computation"
+  # Example for Pointwise (Model-Based)
+  # - name: "coherence"
+  #   type: "pointwise"
+  #   metric_prompt_template: "..." # Optional, can use examples
