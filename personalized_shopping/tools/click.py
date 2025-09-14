@@ -7,7 +7,7 @@ from google.adk.tools import ToolContext
 from google.genai import types
 
 # Absolute import
-from personalized_shopping.shared_libraries.init_env import webshop_env
+from personalized_shopping.shared_libraries.init_env import get_webshop_env
 import sys
 import os
 import pathlib
@@ -26,6 +26,7 @@ except ImportError:
 
 async def click(button_name: str, tool_context: ToolContext) -> str:
     """Simulates clicking a button in the web environment."""
+    webshop_env = get_webshop_env()
     status = {"reward": None, "done": False}
     action_string = f"click[{button_name}]"
     log.info(f"Performing click: {action_string}")

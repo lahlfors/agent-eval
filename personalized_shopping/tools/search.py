@@ -7,7 +7,7 @@ from google.adk.tools import ToolContext
 from google.genai import types
 
 # Absolute import
-from personalized_shopping.shared_libraries.init_env import webshop_env
+from personalized_shopping.shared_libraries.init_env import get_webshop_env
 import sys
 import os
 import pathlib
@@ -26,6 +26,7 @@ except ImportError:
 
 async def search(keywords: str, tool_context: ToolContext) -> str:
     """Performs a keyword search in the webshop environment."""
+    webshop_env = get_webshop_env()
     status = {"reward": None, "done": False}
     action_string = f"search[{keywords}]"
     log.info(f"Performing search: {action_string}")

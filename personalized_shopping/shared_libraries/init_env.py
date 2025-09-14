@@ -46,10 +46,17 @@ def init_env(num_products: int) -> gym.Env:
         observation_mode="text",
         num_products=num_products,
     )
+    env.reset()
+    print(f"Finished initializing WebshopEnv with {num_products} items.")
     return env
 
 # Global instance of the webshop environment used by the agent tools.
-num_product_items = 50000
-webshop_env = init_env(num_product_items)
-webshop_env.reset()
-print(f"Finished initializing WebshopEnv with {num_product_items} items.")
+_webshop_env = None
+
+def get_webshop_env():
+    """Returns a singleton instance of the webshop environment."""
+    global _webshop_env
+    if _webshop_env is None:
+        num_product_items = 50000
+        _webshop_env = init_env(num_product_items)
+    return _webshop_env
