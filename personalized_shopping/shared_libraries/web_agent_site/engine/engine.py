@@ -16,7 +16,7 @@ from rich import print
 from tqdm import tqdm
 
 # Absolute imports
-from personalized_shopping.shared_libraries.web_agent_site.engine.utils import (
+from .utils import (
     DEFAULT_ATTR_PATH,
     HUMAN_ATTR_PATH,
     DEFAULT_REVIEW_PATH,

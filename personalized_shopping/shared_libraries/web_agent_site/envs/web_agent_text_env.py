@@ -14,7 +14,7 @@ import numpy as np
 import torch
 
 # --- Corrected Absolute Imports ---
-from personalized_shopping.shared_libraries.web_agent_site.engine.engine import (
+from ..engine.engine import (
     ACTION_TO_TEMPLATE,
     BACK_TO_SEARCH,
     END_BUTTON,
@@ -27,8 +27,8 @@ from personalized_shopping.shared_libraries.web_agent_site.engine.engine import 
     map_action_to_html,
     parse_action,
 )
-from personalized_shopping.shared_libraries.web_agent_site.engine.goal import get_goals, get_reward
-from personalized_shopping.shared_libraries.web_agent_site.engine.utils import (
+from ..engine.goal import get_goals, get_reward
+from ..engine.utils import (
     DEFAULT_FILE_PATH,
     FEAT_CONV,
     FEAT_IDS,

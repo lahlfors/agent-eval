@@ -8,7 +8,7 @@ from rich import print
 import spacy
 from thefuzz import fuzz
 # Absolute import
-from personalized_shopping.shared_libraries.web_agent_site.engine.normalize import normalize_color
+from .normalize import normalize_color
 
 try:
     nlp = spacy.load("en_core_web_sm")
