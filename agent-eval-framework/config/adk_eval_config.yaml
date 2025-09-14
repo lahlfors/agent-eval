@@ -5,7 +5,7 @@ agent_config:
   agent_module: "personalized_shopping.agent"
   agent_name: "root_agent"
 
-dataset_path: "eval/eval_data/simple.test.jsonl" # <--- CORRECTED PATH
+dataset_path: "data/simple.test.jsonl"
 
 column_mapping:
   query: "prompt"

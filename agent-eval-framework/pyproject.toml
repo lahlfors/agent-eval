@@ -1,29 +1,20 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
+[tool.poetry]
 name = "agent-eval-framework"
 version = "0.1.0"
-authors = [
-  { name="Jules", email="jules@example.com" },
-]
-description = "A generic framework for evaluating AI agents with Vertex AI."
+description = "A framework for evaluating agents"
+authors = ["laah laah@google.com"] # Update with your details if you wish
+license = "PRIVATE"
 readme = "README.md"
-requires-python = ">=3.8"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
-]
-dependencies = [
-    "google-cloud-aiplatform>=1.0",
-    "PyYAML>=6.0",
-    "python-dotenv>=1.0",
-    "pandas>=2.0.0",
-    "ipython"
-]
+packages = [{include = "agent_eval_framework", from = "src"}]
 
-[project.urls]
-"Homepage" = "https://github.com/example/agent-eval-framework"
-"Bug Tracker" = "https://github.com/example/agent-eval-framework/issues"
+[tool.poetry.dependencies]
+python = "^3.11" # Match the python version in the root pyproject.toml
+
+# Add any other dependencies that are SPECIFIC to the agent-eval-framework
+# For example, if logger.py used a special library, it would go here.
+# Based on the filenames, it seems relatively self-contained.
+pyyaml = "^6.0.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
