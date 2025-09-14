@@ -1,8 +1,74 @@
-# Python cache
-__pycache__/
+# ===================================================================
+# Python Artifacts
+# ===================================================================
 
-# Pytest cache
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+
+# ===================================================================
+# Test & Coverage Reports
+# ===================================================================
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
 .pytest_cache/
 
-# Packaging artifacts
-*.egg-info/
+
+# ===================================================================
+# Virtual Environments
+# ===================================================================
+.env
+.venv
+env/
+venv/
+ENV/
+
+
+# ===================================================================
+# Project-Specific Ignores
+# ===================================================================
+
+# Ignore all JSON data files within the personalized_shopping directory.
+# This single rule replaces the multiple specific file entries.
+personalized_shopping/**/*.json
+
+
+# ===================================================================
+# IDE / Editor Files
+# ===================================================================
+.idea/
+.vscode/
+
+
+# ===================================================================
+# OS-specific files
+# ===================================================================
+.DS_Store
+Thumbs.db
