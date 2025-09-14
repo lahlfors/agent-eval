@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "agent-eval-framework"
+version = "0.1.0"
+description = "A framework for evaluating agents"
+authors = ["laah laah@google.com"] # Update with your details if you wish
+license = "PRIVATE"
+readme = "README.md"
+packages = [{include = "agent_eval_framework", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11" # Match the python version in the root pyproject.toml
+
+# Add any other dependencies that are SPECIFIC to the agent-eval-framework
+# For example, if logger.py used a special library, it would go here.
+# Based on the filenames, it seems relatively self-contained.
+pyyaml = "^6.0.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
