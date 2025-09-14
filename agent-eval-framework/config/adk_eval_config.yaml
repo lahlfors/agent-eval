@@ -27,3 +27,4 @@ metrics:
   #   custom_function_path: "my_metrics.tool_check.calculate_tool_accuracy"
 
 experiment_name: "personalized-shopping-adk-eval"
+run_name_prefix: "eval-run"

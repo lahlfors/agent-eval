@@ -12,6 +12,7 @@ import tempfile
 import pandas as pd
 import vertexai
 from vertexai import evaluation
+from google.cloud import aiplatform # Import aiplatform
 from google.cloud import storage
 from typing import List, Dict, Any, Union
 import pathlib
@@ -80,7 +81,7 @@ def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, eval
     return metrics
 
 def run_evaluation(config_path: str):
-    """Runs the full, configuration-driven evaluation pipeline."""
+    """Runs the full, configuration-driven evaluation pipeline with Vertex AI Experiment tracking."""
     eval_run_id = str(uuid.uuid4())
     set_log_context(eval_run_id=eval_run_id, user_id="agent-eval-framework")
     log.info("Starting evaluation run", extra={"config_path": config_path})
@@ -97,12 +98,17 @@ def run_evaluation(config_path: str):
     location = os.getenv("GCP_REGION")
     if not project_id or not location or project_id == "your-project-id-here":
         raise EnvironmentError("GCP_PROJECT_ID and GCP_REGION must be set in the .env file at the project root.")
-    vertexai.init(project=project_id, location=location)
-    log.info(f"Vertex AI initialized for project: {project_id}, location: {location}")
 
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
     log.debug("Configuration loaded", extra={"config": config})
+
+    # --- NEW: Initialize Vertex AI SDK and AI Platform for Experiments ---
+    experiment_name = config.get("experiment_name", "default-agent-evals")
+    vertexai.init(project=project_id, location=location)
+    aiplatform.init(project=project_id, location=location, experiment=experiment_name)
+    log.info(f"Vertex AI initialized for project: {project_id}, location: {location}, experiment: {experiment_name}")
+    # --- END NEW ---
 
     adapter_class = load_class(config["agent_adapter_class"])
     adapter = adapter_class(**config.get("agent_config", {}))
@@ -133,7 +139,6 @@ def run_evaluation(config_path: str):
 
     prompt_col = config.get("prompt_column", "prompt")
     target_col = config.get("target_column", "reference_response")
-    # EvalTask default column names
     df_dataset.rename(columns={
         prompt_col: "prompt",
         target_col: "reference",
@@ -146,6 +151,7 @@ def run_evaluation(config_path: str):
 
     log.info("Generating agent responses...")
     actual_responses = []
+    # ... (response generation loop as before) ...
     for index, record in df_dataset.iterrows():
         prompt = record.get("prompt")
         if not prompt:
@@ -159,38 +165,67 @@ def run_evaluation(config_path: str):
             log.error(f"Adapter failed for prompt '{prompt}'", exc_info=True)
             actual_responses.append("AGENT_EXECUTION_ERROR")
     df_dataset["response"] = actual_responses
+    log.info("Finished generating agent responses.")
 
-    log.info("Running evaluation using vertexai.evaluation.EvalTask...")
     metrics = _build_metrics(config["metrics"])
 
-    eval_task = evaluation.EvalTask(
-        dataset=df_dataset,
-        metrics=metrics
-    )
+    # --- NEW: Start an Experiment Run ---
+    run_name_prefix = config.get("run_name_prefix", "eval")
+    run_name = f"{run_name_prefix}-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{eval_run_id[:4]}"
 
-    eval_result = eval_task.evaluate()
-    log.info("Evaluation complete.")
+    with aiplatform.start_run(run_name=run_name) as my_run:
+        log.info(f"--- Starting Experiment Run: {my_run.name} ---")
 
-    print("\n--- Evaluation Results ---")
-    print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
-    print("\nSummary Metrics:")
-    print(eval_result.summary_metrics)
+        # Log parameters from the config
+        my_run.log_params(config.get("agent_config", {}))
+        my_run.log_params({
+            "dataset": config["dataset_path"],
+            "metrics_config": config["metrics"],
+            "eval_run_id": eval_run_id
+        })
+        log.info("Logged run parameters.")
 
-    print("\nMetrics Table:")
-    display(eval_result.metrics_table)
+        eval_task = evaluation.EvalTask(
+            dataset=df_dataset,
+            metrics=metrics,
+            experiment=experiment_name # Associate with the current experiment
+        )
 
-    try:
-        eval_payload = {
-            "event_type": "evaluation_result",
-            "eval_run_id": eval_run_id,
-            "config_path": config_path,
-            "summary_metrics": eval_result.summary_metrics,
-            "metrics_table": eval_result.metrics_table.to_dict(orient='records'),
-            "dataset_path": config.get("dataset_path"),
-            "gcs_output_dir": eval_result.gcs_output_dir,
-        }
-        log.info("Evaluation results payload", extra={"payload": eval_payload})
-    except Exception as e:
-        log.error(f"Error logging eval results: {e}", exc_info=True)
+        log.info("Running evaluation using vertexai.evaluation.EvalTask...")
+        eval_result = eval_task.evaluate(
+            experiment_run_name=my_run.name # Link EvalTask to this run
+        )
+        log.info("Evaluation complete.")
+
+        # Log summary metrics
+        summary_metrics = eval_result.summary_metrics
+        my_run.log_metrics(summary_metrics)
+        log.info(f"Logged Summary Metrics: {summary_metrics}")
+
+        print("\n--- Evaluation Results ---")
+        print(f"Vertex AI Experiment: {experiment_name}, Run: {my_run.name}")
+        print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
+        print("\nSummary Metrics:")
+        print(summary_metrics)
+        # --- END NEW ---
+
+        print("\nMetrics Table:")
+        display(eval_result.metrics_table)
+
+        try:
+            eval_payload = {
+                "event_type": "evaluation_result",
+                "eval_run_id": eval_run_id,
+                "config_path": config_path,
+                "experiment_name": experiment_name,
+                "run_name": my_run.name,
+                "summary_metrics": summary_metrics,
+                "metrics_table": eval_result.metrics_table.to_dict(orient='records'),
+                "dataset_path": config.get("dataset_path"),
+                "gcs_output_dir": eval_result.gcs_output_dir,
+            }
+            log.info("Evaluation results payload", extra={"payload": eval_payload})
+        except Exception as e:
+            log.error(f"Error logging eval results: {e}", exc_info=True)
 
     return eval_result

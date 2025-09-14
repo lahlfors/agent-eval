@@ -22,3 +22,6 @@ metrics:
   # - name: "coherence"
   #   type: "pointwise"
   #   metric_prompt_template: "..." # Optional, can use examples
+
+experiment_name: "personalized-shopping-evals"
+run_name_prefix: "eval-run"
