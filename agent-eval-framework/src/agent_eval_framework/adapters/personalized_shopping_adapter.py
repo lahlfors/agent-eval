@@ -27,19 +27,17 @@ class PersonalizedShoppingAdapter(BaseAgentAdapter):
 
         log.info("Adapter getting response", extra={"prompt": prompt})
         try:
-            # The ADK agent's root_agent has a `process` method that takes a list of strings
-            # and returns a list of strings. We use asyncio.run to execute it.
-            response_generator = self.agent.process([prompt])
+            async def _get_response():
+                response = ""
+                # The ADK agent's root_agent has a `process` method which is an async generator.
+                async for r in self.agent.process([prompt]):
+                    response = r
+                return response
 
-            # The response is a generator; we need to extract the string content.
-            # We'll take the first response.
-            response = ""
-            for r in response_generator:
-                response = r
-                break # Assuming we only want the first response
+            final_response = asyncio.run(_get_response())
 
-            log.info("Adapter received response", extra={"response": response})
-            return {"actual_response": response}
+            log.info("Adapter received response", extra={"response": final_response})
+            return {"actual_response": final_response}
         except Exception as e:
             log.error("Error during agent interaction", exc_info=True)
             return {"actual_response": "AGENT_EXECUTION_ERROR"}

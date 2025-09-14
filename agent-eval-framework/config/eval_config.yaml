@@ -18,5 +18,3 @@ metrics:
     type: "computation"
   # - name: "coherence"
   #   type: "pointwise"
-
-experiment_name: "personalized-shopping-evals"

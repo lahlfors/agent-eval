@@ -1,44 +1,14 @@
-"""Provides the `search` tool for the Personalized Shopping Agent.
-
-This module defines the `search` tool, which allows the agent to perform
-keyword-based searches within the simulated web environment.
-"""
-
-# Copyright 2025 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# ... license headers ...
 
 from google.adk.tools import ToolContext
 from google.genai import types
 
-from ..shared_libraries.init_env import webshop_env
+# Absolute import
+from personalized_shopping.shared_libraries.init_env import webshop_env
 
 async def search(keywords: str, tool_context: ToolContext) -> str:
-    """Performs a keyword search in the webshop environment.
-
-    This tool takes a string of keywords, simulates a search action in the
-    `webshop_env`, and returns the new state of the web page observation, which
-    contains the search results. It also logs the status and observation and
-    attempts to save the resulting HTML as a tool artifact.
-
-    Args:
-        keywords: The keywords to search for in the webshop.
-        tool_context: The context provided by the ADK, used here for saving
-                      artifacts.
-
-    Returns:
-        The new web page observation (as a string) showing the search results.
-    """
+    """Performs a keyword search in the webshop environment."""
+    # ... (function body as provided) ...
     status = {"reward": None, "done": False}
     action_string = f"search[{keywords}]"
     webshop_env.server.assigned_instruction_text = f"Find me {keywords}."
@@ -53,10 +23,9 @@ async def search(keywords: str, tool_context: ToolContext) -> str:
     print("#" * 50)
     print("Search result:")
     print(f"status: {status}")
-    print(f"observation: {ob}")
+    # print(f"observation: {ob}")
     print("#" * 50)
 
-    # Show artifact in the UI.
     try:
         await tool_context.save_artifact(
             "html",

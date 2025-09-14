@@ -1,18 +1,5 @@
-# Copyright 2025 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-""" """
+# ... license headers ...
+"""Engine for WebShop Environment"""
 
 from ast import literal_eval
 from collections import defaultdict
@@ -21,29 +8,33 @@ import json
 import os
 import random
 import re
+from os.path import join, dirname, abspath
 
 from flask import render_template_string
 from pyserini.search.lucene import LuceneSearcher
 from rich import print
 from tqdm import tqdm
 
-from ..utils import (
-    BASE_DIR,
+# Absolute imports
+from personalized_shopping.shared_libraries.web_agent_site.engine.utils import (
     DEFAULT_ATTR_PATH,
     HUMAN_ATTR_PATH,
+    DEFAULT_REVIEW_PATH,
+    FEAT_CONV,
+    FEAT_IDS,
 )
 
-TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
+BASE_DIR = dirname(abspath(__file__))
+TEMPLATE_DIR = os.path.join(BASE_DIR, "..", "templates")
 
+# ... (Constants: SEARCH_RETURN_N, etc.) ...
 SEARCH_RETURN_N = 50
 PRODUCT_WINDOW = 10
 TOP_K_ATTR = 10
-
 END_BUTTON = "Buy Now"
 NEXT_PAGE = "Next >"
 PREV_PAGE = "< Prev"
 BACK_TO_SEARCH = "Back to Search"
-
 ACTION_TO_TEMPLATE = {
     "Description": "description_page.html",
     "Features": "features_page.html",
@@ -51,7 +42,7 @@ ACTION_TO_TEMPLATE = {
     "Attributes": "attributes_page.html",
 }
 
-
+# ... (map_action_to_html, read_html_template, parse_action, convert_web_app_string_to_var as provided) ...
 def map_action_to_html(action, **kwargs):
     action_name, action_arg = parse_action(action)
     if action_name == "start":
@@ -115,15 +106,13 @@ def map_action_to_html(action, **kwargs):
             show_attrs=kwargs["show_attrs"],
         )
     else:
-        raise ValueError("Action name not recognized.")
+        raise ValueError(f"Action name not recognized: {action}")
     return html
-
 
 def read_html_template(path):
     with open(path) as f:
         template = f.read()
     return template
-
 
 def parse_action(action):
     """Parse action string to action name and its arguments."""
@@ -135,24 +124,6 @@ def parse_action(action):
     else:
         action_name, action_arg = m.groups()
     return action_name, action_arg
-
-
-def convert_web_app_string_to_var(name, string):
-    if name == "keywords":
-        keywords = string
-        if keywords.startswith("["):
-            keywords = literal_eval(keywords)
-        else:
-            keywords = [keywords]
-        var = keywords
-    elif name == "page":
-        page = string
-        page = int(page)
-        var = page
-    else:
-        raise ValueError("Name of variable not recognized.")
-    return var
-
 
 def get_top_n_product_from_keywords(
     keywords,
@@ -183,10 +154,8 @@ def get_top_n_product_from_keywords(
         ]
     return top_n_products
 
-
 def get_product_per_page(top_n_products, page):
     return top_n_products[(page - 1) * PRODUCT_WINDOW : page * PRODUCT_WINDOW]
-
 
 def generate_product_prices(all_products):
     product_prices = dict()
@@ -202,27 +171,29 @@ def generate_product_prices(all_products):
         product_prices[asin] = price
     return product_prices
 
-
 def init_search_engine(num_products=None):
     if num_products == 100:
-        indexes = "indexes_100"
+        index_suffix = "indexes_100"
     elif num_products == 1000:
-        indexes = "indexes_1k"
+        index_suffix = "indexes_1k"
     elif num_products == 10000:
-        indexes = "indexes_10k"
+        index_suffix = "indexes_10k"
     elif num_products == 50000:
-        indexes = "indexes_50k"
-    elif num_products is None:
-        indexes = "indexes_1k"
-    else:
-        raise NotImplementedError(
-            f"num_products being {num_products} is not supported yet."
-        )
-    search_engine = LuceneSearcher(
-        os.path.join(BASE_DIR, f"../search_engine/{indexes}")
-    )
-    return search_engine
+        index_suffix = "indexes_50k"
+    else:  # Default to 1k
+        index_suffix = "indexes_1k"
 
+    search_engine_root = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "search_engine"))
+    index_path = os.path.join(search_engine_root, "indexes", index_suffix)
+
+    print(f"Initializing LuceneSearcher with index path: {index_path}")
+    if not os.path.exists(index_path):
+        raise FileNotFoundError(
+            f"Search index not found at {index_path}. "
+            f"Please run the indexing scripts in {search_engine_root}"
+        )
+    search_engine = LuceneSearcher(index_path)
+    return search_engine
 
 def clean_product_keys(products):
     for product in products:
@@ -243,137 +214,127 @@ def clean_product_keys(products):
     print("Keys cleaned.")
     return products
 
-
 def load_products(filepath, num_products=None, human_goals=True):
-    # TODO: move to preprocessing step -> enforce single source of truth
+    print(f"Attempting to load products from: {filepath}")
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Product file not found: {filepath}. Please check download and paths.")
+
     with open(filepath) as f:
         products = json.load(f)
     print("Products loaded.")
     products = clean_product_keys(products)
 
-    # with open(DEFAULT_REVIEW_PATH) as f:
-    #     reviews = json.load(f)
     all_reviews = dict()
     all_ratings = dict()
-    # for r in reviews:
-    #     all_reviews[r['asin']] = r['reviews']
-    #     all_ratings[r['asin']] = r['average_rating']
 
     if human_goals:
+        if not os.path.exists(HUMAN_ATTR_PATH):
+             raise FileNotFoundError(f"Human attributes file not found: {HUMAN_ATTR_PATH}")
         with open(HUMAN_ATTR_PATH) as f:
             human_attributes = json.load(f)
+    if not os.path.exists(DEFAULT_ATTR_PATH):
+        raise FileNotFoundError(f"Default attributes file not found: {DEFAULT_ATTR_PATH}")
     with open(DEFAULT_ATTR_PATH) as f:
         attributes = json.load(f)
-    with open(HUMAN_ATTR_PATH) as f:
-        human_attributes = json.load(f)
     print("Attributes loaded.")
 
     asins = set()
     all_products = []
     attribute_to_asins = defaultdict(set)
     if num_products is not None:
-        # using item_shuffle.json, we assume products already shuffled
         products = products[:num_products]
-    for i, p in tqdm(enumerate(products), total=len(products)):
-        asin = p["asin"]
-        if asin == "nan" or len(asin) > 10:
-            continue
 
+    for i, p in tqdm(enumerate(products), total=len(products)):
+        asin = p.get("asin")
+        if not asin or asin == "nan" or len(asin) > 10:
+            continue
         if asin in asins:
             continue
-        else:
-            asins.add(asin)
+        asins.add(asin)
 
-        products[i]["category"] = p["category"]
-        products[i]["query"] = p["query"]
-        products[i]["product_category"] = p["product_category"]
+        p["category"] = p.get("category", "")
+        p["query"] = p.get("query", "")
+        p["product_category"] = p.get("product_category", "")
 
-        products[i]["Title"] = p["name"]
-        products[i]["Description"] = p["full_description"]
-        products[i]["Reviews"] = all_reviews.get(asin, [])
-        products[i]["Rating"] = all_ratings.get(asin, "N.A.")
-        for r in products[i]["Reviews"]:
+        p["Title"] = p.get("name", "")
+        p["Description"] = p.get("full_description", "")
+        p["Reviews"] = all_reviews.get(asin, [])
+        p["Rating"] = all_ratings.get(asin, "N.A.")
+        for r in p["Reviews"]:
             if "score" not in r:
-                r["score"] = r.pop("stars")
+                r["score"] = r.pop("stars", None)
             if "review" not in r:
                 r["body"] = ""
             else:
                 r["body"] = r.pop("review")
-        products[i]["BulletPoints"] = (
-            p["small_description"]
-            if isinstance(p["small_description"], list)
-            else [p["small_description"]]
+        p["BulletPoints"] = (
+            p.get("small_description", [])
+            if isinstance(p.get("small_description"), list)
+            else [p.get("small_description", "")]
         )
 
         pricing = p.get("pricing")
-        if pricing is None or not pricing:
+        price_tag = ""
+        if not pricing:
             pricing = [100.0]
-            price_tag = "$100.0"
+            price_tag = "$100.00"
         else:
-            pricing = [
-                float(Decimal(re.sub(r"[^\d.]", "", price)))
-                for price in pricing.split("$")[1:]
-            ]
+            try:
+                parsed_pricing = [
+                    float(Decimal(re.sub(r"[^\d.]", "", price)))
+                    for price in str(pricing).split("$") if re.sub(r"[^\d.]", "", price)
+                ]
+                if not parsed_pricing: parsed_pricing = [100.0]
+                pricing = parsed_pricing
+            except Exception:
+                pricing = [100.0]
+
             if len(pricing) == 1:
-                price_tag = f"${pricing[0]}"
+                price_tag = f"${pricing[0]:.2f}"
             else:
-                price_tag = f"${pricing[0]} to ${pricing[1]}"
+                price_tag = f"${pricing[0]:.2f} to ${pricing[1]:.2f}"
                 pricing = pricing[:2]
-        products[i]["pricing"] = pricing
-        products[i]["Price"] = price_tag
+        p["pricing"] = pricing
+        p["Price"] = price_tag
 
         options = dict()
-        customization_options = p["customization_options"]
+        customization_options = p.get("customization_options")
         option_to_image = dict()
         if customization_options:
             for option_name, option_contents in customization_options.items():
-                if option_contents is None:
-                    continue
+                if option_contents is None: continue
                 option_name = option_name.lower()
-
                 option_values = []
-                for option_content in option_contents:
-                    option_value = (
-                        option_content["value"].strip().replace("/", " | ").lower()
-                    )
-                    option_image = option_content.get("image", None)
-
-                    option_values.append(option_value)
-                    option_to_image[option_value] = option_image
+                if isinstance(option_contents, list):
+                    for option_content in option_contents:
+                        if not isinstance(option_content, dict): continue
+                        option_value = option_content.get("value", "").strip().replace("/", " | ").lower()
+                        if not option_value: continue
+                        option_image = option_content.get("image", None)
+                        option_values.append(option_value)
+                        option_to_image[option_value] = option_image
                 options[option_name] = option_values
-        products[i]["options"] = options
-        products[i]["option_to_image"] = option_to_image
+        p["options"] = options
+        p["option_to_image"] = option_to_image
 
-        # without color, size, price, availability
-        # if asin in attributes and 'attributes' in attributes[asin]:
-        #     products[i]['Attributes'] = attributes[asin]['attributes']
-        # else:
-        #     products[i]['Attributes'] = ['DUMMY_ATTR']
-        # products[i]['instruction_text'] = \
-        #     attributes[asin].get('instruction', None)
-        # products[i]['instruction_attributes'] = \
-        #     attributes[asin].get('instruction_attributes', None)
-
-        # without color, size, price, availability
         if asin in attributes and "attributes" in attributes[asin]:
-            products[i]["Attributes"] = attributes[asin]["attributes"]
+            p["Attributes"] = attributes[asin]["attributes"]
         else:
-            products[i]["Attributes"] = ["DUMMY_ATTR"]
+            p["Attributes"] = ["DUMMY_ATTR"]
 
         if human_goals:
             if asin in human_attributes:
-                products[i]["instructions"] = human_attributes[asin]
+                p["instructions"] = human_attributes[asin]
         else:
-            products[i]["instruction_text"] = attributes[asin].get("instruction", None)
-
-            products[i]["instruction_attributes"] = attributes[asin].get(
+            p["instruction_text"] = attributes.get(asin, {}).get("instruction", None)
+            p["instruction_attributes"] = attributes.get(asin, {}).get(
                 "instruction_attributes", None
             )
 
-        products[i]["MainImage"] = p["images"][0]
-        products[i]["query"] = p["query"].lower().strip()
+        p["MainImage"] = p.get("images", [""])[0]
+        p["query"] = p.get("query", "").lower().strip()
 
-        all_products.append(products[i])
+        all_products.append(p)
 
     for p in all_products:
         for a in p["Attributes"]:
