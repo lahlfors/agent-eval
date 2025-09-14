@@ -1,5 +1,6 @@
-# ... license headers ...
-# ... other imports as provided ...
+# Copyright 2025 Google LLC
+# ... (license headers) ...
+
 from collections import defaultdict
 import json
 import random
@@ -14,7 +15,7 @@ import numpy as np
 import torch
 
 # --- Corrected Absolute Imports ---
-from ..engine.engine import (
+from personalized_shopping.shared_libraries.web_agent_site.engine.engine import (
     ACTION_TO_TEMPLATE,
     BACK_TO_SEARCH,
     END_BUTTON,
@@ -27,8 +28,8 @@ from ..engine.engine import (
     map_action_to_html,
     parse_action,
 )
-from ..engine.goal import get_goals, get_reward
-from ..engine.utils import (
+from personalized_shopping.shared_libraries.web_agent_site.engine.goal import get_goals, get_reward
+from personalized_shopping.shared_libraries.web_agent_site.engine.utils import (
     DEFAULT_FILE_PATH,
     FEAT_CONV,
     FEAT_IDS,
@@ -38,4 +39,5 @@ from ..engine.utils import (
 
 app = Flask(__name__)
 
-# ... rest of WebAgentTextEnv, SimServer, etc. as you provided ...
+# ... (WebAgentTextEnv, SimServer, SimBrowser classes as provided) ...
+(The rest of the web_agent_text_env.py file is the same as the version you provided at 2025-09-14T15:26:54)

@@ -8,7 +8,7 @@ from rich import print
 import spacy
 from thefuzz import fuzz
 # Absolute import
-from .normalize import normalize_color
+from personalized_shopping.shared_libraries.web_agent_site.engine.normalize import normalize_color
 
 try:
     nlp = spacy.load("en_core_web_sm")
@@ -19,5 +19,4 @@ except OSError:
 
 PRICE_RANGE = [10.0 * i for i in range(1, 100)]
 
-# ... rest of the file as you provided ...
-# (get_goals, get_human_goals, get_synthetic_goals, get_type_reward, etc.)
+# ... (rest of the file as you provided at 2025-09-14T15:28:43) ...

@@ -1,4 +1,6 @@
-# ... license headers ...
+# Copyright 2025 Google LLC
+# ... (license headers) ...
+
 """Engine for WebShop Environment"""
 
 from ast import literal_eval
@@ -16,25 +18,23 @@ from rich import print
 from tqdm import tqdm
 
 # Absolute imports
-from .utils import (
+from personalized_shopping.shared_libraries.web_agent_site.engine.utils import (
     DEFAULT_ATTR_PATH,
     HUMAN_ATTR_PATH,
-    DEFAULT_REVIEW_PATH,
-    FEAT_CONV,
-    FEAT_IDS,
 )
 
 BASE_DIR = dirname(abspath(__file__))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "..", "templates")
 
-# ... (Constants: SEARCH_RETURN_N, etc.) ...
 SEARCH_RETURN_N = 50
 PRODUCT_WINDOW = 10
 TOP_K_ATTR = 10
+
 END_BUTTON = "Buy Now"
 NEXT_PAGE = "Next >"
 PREV_PAGE = "< Prev"
 BACK_TO_SEARCH = "Back to Search"
+
 ACTION_TO_TEMPLATE = {
     "Description": "description_page.html",
     "Features": "features_page.html",
@@ -42,7 +42,7 @@ ACTION_TO_TEMPLATE = {
     "Attributes": "attributes_page.html",
 }
 
-# ... (map_action_to_html, read_html_template, parse_action, convert_web_app_string_to_var as provided) ...
+
 def map_action_to_html(action, **kwargs):
     action_name, action_arg = parse_action(action)
     if action_name == "start":
@@ -109,10 +109,12 @@ def map_action_to_html(action, **kwargs):
         raise ValueError(f"Action name not recognized: {action}")
     return html
 
+
 def read_html_template(path):
     with open(path) as f:
         template = f.read()
     return template
+
 
 def parse_action(action):
     """Parse action string to action name and its arguments."""
@@ -124,6 +126,24 @@ def parse_action(action):
     else:
         action_name, action_arg = m.groups()
     return action_name, action_arg
+
+
+def convert_web_app_string_to_var(name, string):
+    if name == "keywords":
+        keywords = string
+        if keywords.startswith("["):
+            keywords = literal_eval(keywords)
+        else:
+            keywords = [keywords]
+        var = keywords
+    elif name == "page":
+        page = string
+        page = int(page)
+        var = page
+    else:
+        raise ValueError("Name of variable not recognized.")
+    return var
+
 
 def get_top_n_product_from_keywords(
     keywords,
@@ -154,8 +174,10 @@ def get_top_n_product_from_keywords(
         ]
     return top_n_products
 
+
 def get_product_per_page(top_n_products, page):
     return top_n_products[(page - 1) * PRODUCT_WINDOW : page * PRODUCT_WINDOW]
+
 
 def generate_product_prices(all_products):
     product_prices = dict()
@@ -171,6 +193,7 @@ def generate_product_prices(all_products):
         product_prices[asin] = price
     return product_prices
 
+
 def init_search_engine(num_products=None):
     if num_products == 100:
         index_suffix = "indexes_100"
@@ -183,7 +206,8 @@ def init_search_engine(num_products=None):
     else:  # Default to 1k
         index_suffix = "indexes_1k"
 
-    search_engine_root = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "search_engine"))
+    engine_dir = dirname(abspath(__file__))
+    search_engine_root = abspath(os.path.join(engine_dir, "..", "..", "search_engine"))
     index_path = os.path.join(search_engine_root, "indexes", index_suffix)
 
     print(f"Initializing LuceneSearcher with index path: {index_path}")
@@ -194,6 +218,7 @@ def init_search_engine(num_products=None):
         )
     search_engine = LuceneSearcher(index_path)
     return search_engine
+
 
 def clean_product_keys(products):
     for product in products:
@@ -213,6 +238,7 @@ def clean_product_keys(products):
         product.pop("small_description_old", None)
     print("Keys cleaned.")
     return products
+
 
 def load_products(filepath, num_products=None, human_goals=True):
     print(f"Attempting to load products from: {filepath}")
@@ -291,9 +317,13 @@ def load_products(filepath, num_products=None, human_goals=True):
 
             if len(pricing) == 1:
                 price_tag = f"${pricing[0]:.2f}"
-            else:
+            elif len(pricing) > 1:
                 price_tag = f"${pricing[0]:.2f} to ${pricing[1]:.2f}"
                 pricing = pricing[:2]
+            else:
+                 price_tag = "$100.00"
+                 pricing = [100.0]
+
         p["pricing"] = pricing
         p["Price"] = price_tag
 

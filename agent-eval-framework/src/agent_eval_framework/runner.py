@@ -1,18 +1,4 @@
-# Copyright 2024 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the aicense is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-"""Core logic for orchestrating and executing agent evaluations."""
+# In agent-eval-framework/src/agent_eval_framework/runner.py
 
 import os
 import json
@@ -26,22 +12,15 @@ from vertexai import evaluation
 from google.cloud import storage
 from typing import List, Dict, Any, Union
 import pathlib
-import uuid
-from datetime import datetime
-from .utils.logger import get_logger, set_log_context
 from IPython.display import display
-
-log = get_logger(__name__)
 
 def load_class(import_str: str) -> type:
     """Dynamically loads a class from a fully qualified string path."""
     module_path, class_name = import_str.rsplit('.', 1)
     try:
         module = importlib.import_module(module_path)
-        log.debug(f"Successfully loaded module: {module_path}")
         return getattr(module, class_name)
     except (ImportError, AttributeError) as e:
-        log.error(f"Could not load class {import_str}", exc_info=True)
         raise ImportError(f"Could not load class {import_str}: {e}")
 
 def _download_gcs_file(gcs_uri: str) -> str:
@@ -51,34 +30,37 @@ def _download_gcs_file(gcs_uri: str) -> str:
         bucket_name, blob_name = gcs_uri.replace("gs://", "").split("/", 1)
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(blob_name)
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".jsonl") as temp_file:
             blob.download_to_filename(temp_file.name)
-            log.info(f"Downloaded {gcs_uri} to {temp_file.name}")
             return temp_file.name
     except Exception as e:
-        log.error(f"Failed to download {gcs_uri}", exc_info=True)
         raise RuntimeError(f"Failed to download {gcs_uri}: {e}")
 
-def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, evaluation.CustomMetric, evaluation.PointwiseMetric, evaluation.PairwiseMetric]]:
-    """Builds the list of metric objects for the vertexai.evaluation.EvalTask."""
+def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Any]:
+    """Builds the list of metric objects for the evaluation.EvalTask."""
     metrics = []
     for metric_spec in metrics_config:
         metric_type = metric_spec.get("type", "computation")
         metric_name = metric_spec["name"]
-        log.debug(f"Building metric: {metric_name}, type: {metric_type}")
 
         if metric_type == "computation":
             metrics.append(metric_name)
         elif metric_type == "pointwise":
             metric_prompt_template = metric_spec.get("metric_prompt_template")
-            if not metric_prompt_template:
+            if not metric_prompt_template and metric_spec.get("use_example_template", False):
                  try:
                      metric_prompt_template = evaluation.MetricPromptTemplateExamples.get_prompt_template(metric_name)
                  except ValueError:
-                     raise ValueError(f"Pointwise metric '{metric_name}' needs a 'metric_prompt_template' or be a valid example name.")
+                     print(f"Warning: Pointwise metric '{metric_name}' not found in examples.")
+
+            if not metric_prompt_template:
+                 raise ValueError(f"Pointwise metric '{metric_name}' needs a 'metric_prompt_template'.")
+
             metrics.append(evaluation.PointwiseMetric(
                 metric=metric_name,
                 metric_prompt_template=metric_prompt_template,
+                rating_rubric=metric_spec.get("rating_rubric", {}),
             ))
         elif metric_type == "custom_function":
             custom_function = load_class(metric_spec["custom_function_path"])
@@ -92,118 +74,98 @@ def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, eval
 
 def run_evaluation(config_path: str):
     """Runs the full, configuration-driven evaluation pipeline."""
-    eval_run_id = str(uuid.uuid4())
-    set_log_context(session_id=eval_run_id, user_id="agent-eval-framework")
-    log.info("Starting evaluation run", extra={"config_path": config_path, "eval_run_id": eval_run_id})
+    # .env loading: Assume it's in the CWD (project root)
+    dotenv.load_dotenv()
 
-    project_root = pathlib.Path(__file__).parent.parent.parent.parent
-    dotenv_path = project_root / ".env"
-    if dotenv_path.exists():
-        log.debug(f"Loading environment variables from: {dotenv_path}")
-        dotenv.load_dotenv(dotenv_path=dotenv_path, override=True)
-    else:
-        log.warning(f".env file not found at {dotenv_path}")
+    # 1. Load Configuration
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
 
+    # 2. Setup GCP and AI Platform
     project_id = os.getenv("GCP_PROJECT_ID")
     location = os.getenv("GCP_REGION")
     if not project_id or not location:
-        raise EnvironmentError("GCP_PROJECT_ID and GCP_REGION must be set in the .env file at the project root.")
+        raise EnvironmentError("GCP_PROJECT_ID and GCP_REGION must be set.")
+
     vertexai.init(project=project_id, location=location)
-    log.info(f"Vertex AI initialized for project: {project_id}, location: {location}")
+    print(f"Vertex AI SDK initialized for project: {project_id}, location: {location}")
 
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-    log.debug("Configuration loaded", extra={"config": config})
-
+    # 3. Instantiate Agent Adapter
+    agent_engine_id_from_env = os.getenv("AGENT_ENGINE_ID")
+    if agent_engine_id_from_env:
+        config["agent_config"]["agent_engine_id"] = agent_engine_id_from_env
 
     adapter_class = load_class(config["agent_adapter_class"])
-    adapter = adapter_class(**config.get("agent_config", {}))
+    adapter = adapter_class(**config["agent_config"])
 
+    # 4. Load and Prepare Golden Dataset
     dataset_path = config["dataset_path"]
     if dataset_path.startswith("gs://"):
+        print(f"Downloading dataset from GCS: {dataset_path}")
         local_dataset_path = _download_gcs_file(dataset_path)
     else:
-        # Resolve relative path from framework root
-        local_dataset_path = project_root / "agent-eval-framework" / dataset_path
-        if not os.path.exists(local_dataset_path):
-             # Fallback to absolute path if not found relative to framework
-             local_dataset_path = dataset_path
+        # Path is relative to the project root (CWD)
+        local_dataset_path = dataset_path
 
+    print(f"Attempting to load dataset from: {os.path.abspath(local_dataset_path)}")
     if not os.path.exists(local_dataset_path):
-         log.error(f"Dataset file not found: {local_dataset_path}")
-         raise FileNotFoundError(f"Dataset file not found: {local_dataset_path}")
+        raise FileNotFoundError(f"[Errno 2] No such file or directory: '{os.path.abspath(local_dataset_path)}'")
 
     with open(local_dataset_path, "r") as f:
         golden_dataset = [json.loads(line) for line in f]
-    if str(dataset_path).startswith("gs://"):
-         os.remove(local_dataset_path)
-    df_dataset = pd.DataFrame(golden_dataset)
-    log.info(f"Loaded dataset with {len(df_dataset)} records.")
 
+    if config["dataset_path"].startswith("gs://") and os.path.exists(local_dataset_path):
+        os.remove(local_dataset_path)
+
+    df_dataset = pd.DataFrame(golden_dataset)
+
+    # 4a. Apply Column Mapping
     column_mapping = config.get("column_mapping", {})
     df_dataset.rename(columns=column_mapping, inplace=True)
+    print(f"Applied column mapping: {column_mapping}")
+    print(f"Dataset columns after mapping: {df_dataset.columns.tolist()}")
 
-    prompt_col = config.get("prompt_column", "prompt")
-    target_col = config.get("target_column", "reference_response")
-    response_col = "actual_response"
-
-    # Rename columns to match EvalTask expectations
-    rename_map = {
-        prompt_col: "prompt",
-        target_col: "reference",
-        response_col: "response"
-    }
-    df_dataset.rename(columns=rename_map, inplace=True)
-    log.info(f"Dataset columns renamed for EvalTask: {rename_map}")
-
-    if "prompt" not in df_dataset.columns:
-        raise ValueError(f"'{prompt_col}' (mapped to 'prompt') column not found in dataset.")
-
-    log.info("Generating agent responses...")
+    # 5. Generate Actual Responses
+    print("Generating agent responses...")
     actual_responses = []
     for index, record in df_dataset.iterrows():
         prompt = record.get("prompt")
+        if not prompt:
+            print(f"Warning: Missing 'prompt' in record {index}")
+            actual_responses.append("MISSING_PROMPT")
+            continue
         try:
             response_data = adapter.get_response(prompt)
             actual_responses.append(response_data.get("actual_response", "NO_RESPONSE"))
         except Exception as e:
-            log.error(f"Adapter failed for prompt '{prompt}'", exc_info=True)
+            print(f"ERROR: Adapter failed for prompt '{prompt}': {e}")
             actual_responses.append("AGENT_EXECUTION_ERROR")
+
     df_dataset["response"] = actual_responses
 
-    log.info("Running evaluation using vertexai.evaluation.EvalTask...")
+    # 6. Define and Run Evaluation using EvalTask
+    print("Running evaluation using vertexai.evaluation.EvalTask...")
     metrics = _build_metrics(config["metrics"])
+
+    if not metrics:
+        print("Warning: No metrics configured for evaluation.")
+        return None
 
     eval_task = evaluation.EvalTask(
         dataset=df_dataset,
-        metrics=metrics
+        metrics=metrics,
+        experiment=config.get("experiment_name", "agent-eval-framework-run")
     )
 
-    eval_result = eval_task.evaluate()
-    log.info("Evaluation complete.")
+    eval_result = eval_task.evaluate(
+        experiment_run_name=config.get("experiment_run_name", "run-" + pd.Timestamp.now().strftime("%Y%m%d%H%M%S"))
+    )
 
+    # 7. Print results
     print("\n--- Evaluation Results ---")
-    print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
-    print("\nSummary Metrics:")
+    print("Summary Metrics:")
     print(eval_result.summary_metrics)
-
     print("\nMetrics Table:")
     display(eval_result.metrics_table)
-
-    # Log results to standard logger
-    try:
-        eval_payload = {
-            "event_type": "evaluation_result",
-            "eval_run_id": eval_run_id,
-            "config_path": config_path,
-            "summary_metrics": eval_result.summary_metrics,
-            "metrics_table": eval_result.metrics_table.to_dict(orient='records'),
-            "dataset_path": config.get("dataset_path"),
-            "gcs_output_dir": eval_result.gcs_output_dir,
-        }
-        log.info("Evaluation results payload", extra={"payload": eval_payload})
-        # logger.info(json.dumps(eval_payload)) # Option to log as pure JSON string
-    except Exception as e:
-        log.error(f"Error logging eval results: {e}", exc_info=True)
 
     return eval_result
