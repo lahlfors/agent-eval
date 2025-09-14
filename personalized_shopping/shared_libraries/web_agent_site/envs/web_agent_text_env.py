@@ -109,6 +109,7 @@ class WebAgentTextEnv(gym.Env):
         self.num_prev_obs = self.kwargs.get("num_prev_obs", 0)
         self.num_prev_actions = self.kwargs.get("num_prev_actions", 0)
         self.instruction_text = ""
+        self.text_to_clickable = {}
         self.reset()
 
     def step(self, action):
@@ -121,13 +122,15 @@ class WebAgentTextEnv(gym.Env):
           - click[value]
         If action not valid, perform nothing.
         """
-        info = None
+        info = {}
         self.get_available_actions()
 
         # Determine action type (click, search) and argument
         action_name, action_arg = parse_action(action)
         if action_arg is not None:
             action_arg = action_arg.lower()
+
+        status = dict(reward=0.0, done=False)
         if action_name == "search" and action_arg is not None and action_arg != "":
             status = self.browser.search(action_arg)
         elif (
@@ -137,7 +140,7 @@ class WebAgentTextEnv(gym.Env):
         ):
             status = self.browser.click(action_arg, self.text_to_clickable)
         else:
-            status = dict(reward=0, done=False)
+            print(f"Action '{action}' is not valid. Available clickables: {list(self.text_to_clickable.keys())}")
 
         # Update observation, state with the new action
         ob = self.observation
@@ -147,16 +150,17 @@ class WebAgentTextEnv(gym.Env):
             if len(self.prev_actions) > self.num_prev_actions:
                 self.prev_actions.pop(0)
         if self.num_prev_obs > 0:
-            self.prev_obs.append(ob)
+             # prev_obs stores the history of observations *before* the current step
             if len(self.prev_obs) > self.num_prev_obs:
                 self.prev_obs.pop(0)
 
         for i in range(1, max(self.num_prev_obs, self.num_prev_actions) + 1):
-            if self.num_prev_actions >= i:
+            if self.num_prev_actions >= i and len(self.prev_actions) >= i:
                 text_list.append(self.prev_actions[-i])
-            if self.num_prev_obs >= i:
+            if self.num_prev_obs >= i and len(self.prev_obs) >= i:
                 text_list.append(self.prev_obs[-i])
 
+        self.prev_obs.append(ob) # Add current observation to history for next step
         state = " [SEP] ".join(text_list[::-1])
         return state, status["reward"], status["done"], info
 
@@ -271,13 +275,14 @@ class WebAgentTextEnv(gym.Env):
         init_url = f"{self.base_url}/{self.session}"
         self.browser.get(init_url, session_id=self.session, session_int=session_int)
 
-        self.text_to_clickable = None
+        self.text_to_clickable = {}
         self.instruction_text = (
             self.get_instruction_text()
             if instruction_text is None
             else instruction_text
         )
-        self.server.assigned_instruction_text = self.instruction_text
+        if self.server:
+            self.server.assigned_instruction_text = self.instruction_text
         obs = self.observation
         self.prev_obs = [obs]
         self.prev_actions = []
@@ -354,9 +359,11 @@ class SimServer:
             instruction_text = session["goal"]["instruction_text"]
             if self.assigned_instruction_text is not None:
                 instruction_text = self.assigned_instruction_text
-            self.assigned_instruction_text = instruction_text
+            # self.assigned_instruction_text = instruction_text # This seems to be the only place it's set
 
             action_name = kwargs.get("action_name")
+            text_to_clickable = kwargs.get("text_to_clickable", {})
+
             if not action_name:
                 if not kwargs: # reset
                      action_name = "start"
@@ -365,6 +372,8 @@ class SimServer:
                 elif "clickable_name" in kwargs:
                     action_name = "click"
 
+            html = ""
+            url = current_url
             if action_name == "start":
                 html = map_action_to_html("start", session_id=session_id, instruction_text=instruction_text)
                 url = f"{self.base_url}/{session_id}"
@@ -383,19 +392,8 @@ class SimServer:
                 html = map_action_to_html("search", session_id=session_id, products=products, keywords=keywords, page=page, total=len(top_n_products), instruction_text=instruction_text)
             elif action_name == "click":
                 clickable_name = kwargs["clickable_name"]
-                text_to_clickable = kwargs["text_to_clickable"]
-                clickable = text_to_clickable[clickable_name.lower()]
-
-                if clickable.get("class") == ["product-link"]:
-                    session["asin"] = clickable_name.upper()
-                    session["actions"]["asin"] += 1
-                    session["asins"].add(session["asin"])
-                elif clickable.get("name"):
-                    session["options"][clickable["name"].lower()] = clickable_name
-                    session["actions"]["options"] += 1
-
-                product_info = self.product_item_dict[session["asin"]]
                 if clickable_name.lower() == END_BUTTON.lower():
+                    product_info = self.product_item_dict[session["asin"]]
                     reward, info = get_reward(product_info, session["goal"], self.product_prices.get(session["asin"]), session["options"], verbose=True)
                     status["reward"], status["done"] = reward, True
                     session["done"], session["reward"], session["verbose_info"] = True, reward, info
@@ -408,19 +406,19 @@ class SimServer:
                 elif clickable_name.lower() == PREV_PAGE.lower() and self.get_page_name(current_url) == "search_results":
                      return self.receive(session_id, current_url, keywords=session["keywords"], page=session["page"] - 1, action_name="search")
                 elif clickable_name.lower() == PREV_PAGE.lower() and self.get_page_name(current_url) == "item_sub_page":
-                     kwargs["action_name"] = "click"
                      html, url = self.item_page(session_id, session["asin"], session["keywords"], session["page"], session["options"], instruction_text, **kwargs)
                 elif clickable_name.lower() == PREV_PAGE.lower() and self.get_page_name(current_url) == "item_page":
                      return self.receive(session_id, current_url, keywords=session["keywords"], page=session["page"], action_name="search")
-                elif clickable_name in ACTION_TO_TEMPLATE:
+                elif clickable_name.lower() in [k.lower() for k in ACTION_TO_TEMPLATE]:
+                     product_info = self.product_item_dict[session["asin"]]
                      session["actions"][clickable_name] += 1
                      url = f"{self.base_url}/item_sub_page/{session_id}/{session['asin']}/{'+'.join(session['keywords'])}/{session['page']}/{clickable_name}/{session['options']}"
                      html = map_action_to_html(f"click[{clickable_name}]", session_id=session_id, product_info=product_info, keywords=session["keywords"], page=session["page"], asin=session["asin"], options=session["options"], instruction_text=instruction_text)
-                else: # item page
+                else: # item page or option click
                      html, url = self.item_page(session_id, session["asin"], session["keywords"], session["page"], session["options"], instruction_text, **kwargs)
             else:
-                raise ValueError(f"Invalid kwargs: {kwargs}")
-        return html, url, status
+                raise ValueError(f"Invalid kwargs or action_name: {kwargs}")
+            return html, url, status
 
     def item_page(self, session_id, asin, keywords, page, options, instruction_text, **kwargs):
          product_info = self.product_item_dict[asin]
@@ -466,4 +464,9 @@ class SimBrowser:
         )
         return status
 
-# No top-level register call in the original, it's in init_env.py
+# register(
+#     id="WebAgentTextEnv-v0",
+#     entry_point=(
+#         "personalized_shopping.shared_libraries.web_agent_site.envs.web_agent_text_env:WebAgentTextEnv"
+#     ),
+# )
