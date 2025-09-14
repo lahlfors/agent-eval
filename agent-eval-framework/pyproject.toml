@@ -9,11 +9,12 @@ packages = [{include = "agent_eval_framework", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11" # Match the python version in the root pyproject.toml
-
-# Add any other dependencies that are SPECIFIC to the agent-eval-framework
-# For example, if logger.py used a special library, it would go here.
-# Based on the filenames, it seems relatively self-contained.
 pyyaml = "^6.0.2"
+python-dotenv = "^1.0.1"
+pandas = "^2.2.2"
+google-cloud-aiplatform = { extras = ["evaluation"], version = ">=1.111.0" }
+google-cloud-storage = "^2.18.0"
+ipython = "^8.26.0"
 
 [build-system]
 requires = ["poetry-core"]

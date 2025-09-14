@@ -27,19 +27,20 @@ files = [
 [[package]]
 name = "agent-eval-framework"
 version = "0.1.0"
-description = "A generic framework for evaluating AI agents with Vertex AI."
+description = "A framework for evaluating agents"
 optional = false
-python-versions = ">=3.8"
+python-versions = "^3.11"
 groups = ["main"]
 files = []
 develop = true
 
 [package.dependencies]
-google-cloud-aiplatform = ">=1.0"
-ipython = "*"
-pandas = ">=2.0.0"
-python-dotenv = ">=1.0"
-PyYAML = ">=6.0"
+google-cloud-aiplatform = {version = ">=1.111.0", extras = ["evaluation"]}
+google-cloud-storage = "^2.18.0"
+ipython = "^8.26.0"
+pandas = "^2.2.2"
+python-dotenv = "^1.0.1"
+pyyaml = "^6.0.2"
 
 [package.source]
 type = "directory"
@@ -7512,4 +7513,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "fca5d202dea86a334541e0b2d03775de5e3444783f9984feadfff3780da446b1"
+content-hash = "e386061fff6b57fc6cd6220b979155f45e0aadf2a45bf77e20dcd9033954f82f"
