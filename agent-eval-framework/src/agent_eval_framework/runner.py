@@ -172,7 +172,7 @@ def run_evaluation(config_path: str):
     log.info("Evaluation complete.")
 
     print("\n--- Evaluation Results ---")
-    print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
+    # print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
     print("\nSummary Metrics:")
     print(eval_result.summary_metrics)
 
