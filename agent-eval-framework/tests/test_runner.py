@@ -27,6 +27,7 @@ def setup_env():
 def test_run_evaluation(mocker):
     # Mock GCP calls
     mocker.patch('vertexai.init')
+    mocker.patch('google.cloud.aiplatform.init')
     mock_eval_result = mocker.Mock()
     mock_eval_result.summary_metrics = {"some_metric": 1.0}
     mock_eval_result.metrics_table = pd.DataFrame() # Mock metrics_table as an empty DataFrame

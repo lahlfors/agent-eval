@@ -19,6 +19,7 @@ import pathlib
 import uuid
 from datetime import datetime
 from .utils.logger import get_logger, set_log_context
+from . import otel_config
 from IPython.display import display
 
 log = get_logger(__name__)
@@ -82,6 +83,9 @@ def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, eval
 
 def run_evaluation(config_path: str):
     """Runs the full, configuration-driven evaluation pipeline with Vertex AI Experiment tracking."""
+    # --- NEW: Setup OpenTelemetry early ---
+    otel_config.setup_opentelemetry()
+    # ---
     eval_run_id = str(uuid.uuid4())
     set_log_context(eval_run_id=eval_run_id, user_id="agent-eval-framework")
     log.info("Starting evaluation run", extra={"config_path": config_path})

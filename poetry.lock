@@ -1366,7 +1366,10 @@ authlib = ">=1.5.1,<2.0.0"
 click = ">=8.1.8,<9.0.0"
 fastapi = ">=0.115.0,<1.0.0"
 google-api-python-client = ">=2.157.0,<3.0.0"
-google-cloud-aiplatform = {version = ">=1.95.1,<2.0.0", extras = ["agent-engines"]}
+google-cloud-aiplatform = [
+    {version = ">=1.95.1,<2.0.0", extras = ["agent-engines"]},
+    {version = ">=1.100.0", extras = ["evaluation"], optional = true, markers = "extra == \"eval\""},
+]
 google-cloud-bigtable = ">=2.32.0"
 google-cloud-secret-manager = ">=2.22.0,<3.0.0"
 google-cloud-spanner = ">=3.56.0,<4.0.0"
@@ -1378,14 +1381,17 @@ mcp = {version = ">=1.8.0,<2.0.0", markers = "python_version >= \"3.10\""}
 opentelemetry-api = ">=1.31.0,<2.0.0"
 opentelemetry-exporter-gcp-trace = ">=1.9.0,<2.0.0"
 opentelemetry-sdk = ">=1.31.0,<2.0.0"
+pandas = {version = ">=2.2.3", optional = true, markers = "extra == \"eval\""}
 pydantic = ">=2.0,<3.0.0"
 python-dateutil = ">=2.9.0.post0,<3.0.0"
 python-dotenv = ">=1.0.0,<2.0.0"
 PyYAML = ">=6.0.2,<7.0.0"
 requests = ">=2.32.4,<3.0.0"
+rouge-score = {version = ">=0.1.2", optional = true, markers = "extra == \"eval\""}
 sqlalchemy = ">=2.0,<3.0.0"
 sqlalchemy-spanner = ">=1.14.0"
 starlette = ">=0.46.2,<1.0.0"
+tabulate = {version = ">=0.9.0", optional = true, markers = "extra == \"eval\""}
 tenacity = ">=8.0.0,<9.0.0"
 typing-extensions = ">=4.5,<5"
 tzlocal = ">=5.3,<6.0"
@@ -5274,6 +5280,23 @@ pygments = ">=2.13.0,<3.0.0"
 jupyter = ["ipywidgets (>=7.5.1,<9)"]
 
 [[package]]
+name = "rouge-score"
+version = "0.1.2"
+description = "Pure python implementation of ROUGE-1.5.5."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "rouge_score-0.1.2.tar.gz", hash = "sha256:c7d4da2683e68c9abf0135ef915d63a46643666f848e558a1b9f7ead17ff0f04"},
+]
+
+[package.dependencies]
+absl-py = "*"
+nltk = "*"
+numpy = "*"
+six = ">=1.14.0"
+
+[[package]]
 name = "rpds-py"
 version = "0.27.1"
 description = "Python bindings to Rust's persistent data structures (rpds)"
@@ -7513,4 +7536,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "e386061fff6b57fc6cd6220b979155f45e0aadf2a45bf77e20dcd9033954f82f"
+content-hash = "2e1be3369d65987905e96767d9d0a2a539b6eee5d4e92ae527a9f63ab8afe430"
