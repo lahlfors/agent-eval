@@ -10,8 +10,13 @@ dataset_path: "data/simple.test.jsonl"
 column_mapping:
   query: "prompt"
   reference_answer: "reference"
+  # Map the 'trajectory' column from the dataset to the 'reference_trajectory'
+  # column expected by the native Vertex AI metric.
+  trajectory: "reference_trajectory"
 
 metrics:
+  - name: "trajectory_exact_match" # Use the native Vertex AI metric
+    type: "computation"
   - name: "exact_match"
     type: "computation"
   - name: "bleu"

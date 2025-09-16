@@ -22,13 +22,20 @@ def setup_opentelemetry():
         tracer_provider = TracerProvider(resource=resource)
         trace.set_tracer_provider(tracer_provider)
 
+        # Make the endpoint configurable via environment variable
+        endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://otel.googleapis.com:443")
+        # Allow insecure connections for local collectors if needed
+        insecure_flag = os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "False").lower() in ('true', '1', 't')
+
+        log.info(f"Configuring OTLP exporter with endpoint: {endpoint} (insecure: {insecure_flag})")
+
         otlp_exporter = OTLPSpanExporter(
-            endpoint="https://otel.googleapis.com:443",  # Google Cloud Trace OTLP endpoint
-            insecure=False
+            endpoint=endpoint,
+            insecure=insecure_flag
         )
 
         tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
-        log.info("✅ OpenTelemetry configured successfully for Google Cloud Trace.")
+        log.info("✅ OpenTelemetry configured successfully.")
 
     except ImportError:
         log.warning("⚠️ OpenTelemetry libraries not found. Tracing will be disabled.")

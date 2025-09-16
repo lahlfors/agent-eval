@@ -7,6 +7,52 @@ import contextvars
 from datetime import datetime
 import os
 import sys
+import urllib.request
+import urllib.error
+
+# 1. Context Variables for tracing
+session_id_var = contextvars.ContextVar('session_id', default=None)
+user_id_var = contextvars.ContextVar('user_id', default=None)
+eval_run_id_var = contextvars.ContextVar('eval_run_id', default=None)
+
+
+class OpenObserveHandler(logging.Handler):
+    """
+    A logging handler that sends log records to an OpenObserve API endpoint.
+    """
+    def __init__(self, endpoint_url: str, user: str, password: str):
+        super().__init__()
+        self.endpoint_url = endpoint_url
+        self.user = user
+        self.password = password
+        # For sending credentials
+        password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+        password_mgr.add_password(None, self.endpoint_url, self.user, self.password)
+        self.opener = urllib.request.build_opener(urllib.request.HTTPBasicAuthHandler(password_mgr))
+
+    def emit(self, record: logging.LogRecord):
+        """
+        Formats the record and sends it to OpenObserve as a single-item batch.
+        """
+        try:
+            log_entry_json = self.format(record)  # This will be a JSON string from JsonFormatter
+
+            # The _json endpoint expects a JSON array of records.
+            payload = f"[{log_entry_json}]".encode('utf-8')
+
+            req = urllib.request.Request(
+                self.endpoint_url,
+                data=payload,
+                headers={'Content-Type': 'application/json', "User-Agent": "Python-Logging-Handler"}
+            )
+
+            # Use the opener to handle basic authentication
+            with self.opener.open(req, timeout=5) as response:
+                if response.status >= 300:
+                    print(f"Error sending log to OpenObserve: {response.status} {response.read()}", file=sys.stderr)
+
+        except Exception as e:
+            print(f"Failed to send log to OpenObserve: {e}", file=sys.stderr)
 
 # 1. Context Variables for tracing
 session_id_var = contextvars.ContextVar('session_id', default=None)
@@ -56,18 +102,34 @@ class JsonFormatter(logging.Formatter):
 def get_logger(name: str) -> logging.Logger:
     """
     Acts as the facade. Returns a logger instance configured to output
-    structured JSON logs to the console.
+    structured JSON logs to the console and/or OpenObserve.
     """
     logger = logging.getLogger(name)
-
     if logger.hasHandlers():
         return logger
 
-    logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler(sys.stdout) # Log to stdout
+    logger.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
     formatter = JsonFormatter()
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+
+    # Always add a console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    # Add OpenObserve handler if endpoint is configured
+    oo_endpoint = os.getenv("OPENOBSERVE_ENDPOINT")
+    oo_user = os.getenv("OPENOBSERVE_USER")
+    oo_password = os.getenv("OPENOBSERVE_PASSWORD")
+
+    if oo_endpoint and oo_user and oo_password:
+        try:
+            oo_handler = OpenObserveHandler(endpoint_url=oo_endpoint, user=oo_user, password=oo_password)
+            oo_handler.setFormatter(formatter)
+            logger.addHandler(oo_handler)
+            logger.info(f"OpenObserve logging enabled to endpoint: {oo_endpoint}")
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenObserve handler: {e}", exc_info=True)
+
     return logger
 
 def set_log_context(session_id: str = None, user_id: str = None, eval_run_id: str = None):

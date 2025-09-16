@@ -24,6 +24,7 @@ class ADKAgentAdapter:
 
     async def _get_response_async(self, prompt: str) -> Dict[str, Any]:
         final_text = ""
+        tool_calls = []
         user_id = "eval_user"
         try:
             async for event in self.adk_app.async_stream_query(user_id=user_id, message=prompt):
@@ -32,10 +33,22 @@ class ADKAgentAdapter:
                     for part in content['parts']:
                         if 'text' in part:
                             final_text += part['text']
-            return {"actual_response": final_text}
+                        # Capture the full tool call details as per Vertex AI eval docs
+                        if 'tool_code' in part and part.get('tool_code'):
+                            tool_call_data = {
+                                "tool_name": part['tool_code'].get('name'),
+                                "tool_input": part['tool_code'].get('args'),
+                            }
+                            if tool_call_data["tool_name"]:
+                                tool_calls.append(tool_call_data)
+
+            return {
+                "actual_response": final_text,
+                "predicted_trajectory": tool_calls  # Use key 'predicted_trajectory'
+            }
         except Exception as e:
             print(f"Error during ADK agent async_stream_query: {e}")
-            return {"actual_response": "ADK_APP_ERROR", "error": str(e)}
+            return {"actual_response": "ADK_APP_ERROR", "error": str(e), "predicted_trajectory": []}
 
     def get_response(self, prompt: str) -> Dict[str, Any]:
         # Run the async method in a new event loop

@@ -49,7 +49,7 @@ class MyCustomAdapter(BaseAgentAdapter):
         # Return the response in the required format
         return {
             "actual_response": response_text,
-            "actual_trajectory": tool_calls
+            "predicted_trajectory": tool_calls # Must match the format for trajectory evaluation
         }
 ```
 
@@ -71,7 +71,7 @@ dataset_path: "path/to/your/golden_dataset.jsonl" # or gs://bucket/path
 
 # List of metrics to run.
 metrics:
-  - "rouge"
+  - "rouge_l_sum"
   - "trajectory_exact_match"
 
 # (Optional) Map your dataset's column names to the framework's names.
@@ -90,7 +90,7 @@ Create a simple Python script to start the evaluation.
 from agent_eval_framework.runner import run_evaluation
 
 if __name__ == "__main__":
-    # Ensure GCP environment variables are set (GCP_PROJECT_ID, GCP_REGION)
+    # Ensure GCP and observability environment variables are set
     run_evaluation(config_path="path/to/your/config.yaml")
 ```
 
@@ -100,3 +100,44 @@ python run_my_eval.py
 ```
 
 The framework will then execute the full pipeline and print a table with the evaluation results.
+
+---
+
+## Advanced Features
+
+### Trajectory Evaluation
+
+The framework supports the native Vertex AI trajectory evaluation metrics. To use them, you must provide the trajectory data in the correct format.
+
+**Data Format:**
+- The agent adapter's `get_response` method must return a `predicted_trajectory` key.
+- The golden dataset must contain a `reference_trajectory` column (or a column mapped to it).
+- The value for both of these must be a list of dictionaries, where each dictionary represents a tool call:
+  ```json
+  [
+    {"tool_name": "search", "tool_input": {"query": "floral dress"}},
+    {"tool_name": "click", "tool_input": {"button_name": "item_1"}}
+  ]
+  ```
+
+**Available Metrics:**
+You can use any of the following native trajectory metrics in your `config.yaml`:
+- `trajectory_exact_match`
+- `trajectory_in_order_match`
+- `trajectory_any_order_match`
+- `trajectory_precision`
+- `trajectory_recall`
+
+### Configuring Observability
+
+The framework's logging and tracing backends can be configured with environment variables.
+
+**Tracing (OTLP):**
+- `OTEL_EXPORTER_OTLP_ENDPOINT`: The full URL of your OTLP-compatible trace collector (e.g., `http://localhost:4317`). Defaults to the Google Cloud Trace endpoint.
+- `OTEL_EXPORTER_OTLP_INSECURE`: Set to `"true"` if the endpoint uses HTTP instead of HTTPS.
+
+**Logging (OpenObserve):**
+To enable sending logs to OpenObserve, set all of the following variables:
+- `OPENOBSERVE_ENDPOINT`: The full URL of your OpenObserve instance's JSON ingestion API (e.g., `http://localhost:5080/api/default/default/_json`).
+- `OPENOBSERVE_USER`: The username for authentication.
+- `OPENOBSERVE_PASSWORD`: The password for authentication.
