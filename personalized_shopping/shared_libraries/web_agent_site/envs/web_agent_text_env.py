@@ -20,8 +20,8 @@ import time
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 from flask import Flask
-import gym
-from gym.envs.registration import register
+import gymnasium as gym
+from gymnasium.envs.registration import register
 import numpy as np
 import torch
 
@@ -50,6 +50,36 @@ from personalized_shopping.shared_libraries.web_agent_site.utils import (
 
 
 app = Flask(__name__)
+
+
+@app.route('/<session_id>', methods=['GET', 'POST'])
+def index(session_id):
+    """Dummy route to allow url_for('index') to work."""
+    pass
+
+
+@app.route('/search_results/<session_id>/<keywords>/<page>', methods=['GET', 'POST'])
+def search_results(session_id, keywords, page):
+    """Dummy route to allow url_for('search_results') to work."""
+    pass
+
+
+@app.route('/item_page/<session_id>/<asin>/<keywords>/<page>/<options>', methods=['GET', 'POST'])
+def item_page(session_id, asin, keywords, page, options):
+    """Dummy route to allow url_for('item_page') to work."""
+    pass
+
+
+@app.route('/item_sub_page/<session_id>/<asin>/<keywords>/<page>/<sub_page>/<options>', methods=['GET', 'POST'])
+def item_sub_page(session_id, asin, keywords, page, sub_page, options):
+    """Dummy route to allow url_for('item_sub_page') to work."""
+    pass
+
+
+@app.route('/done/<session_id>/<asin>/<options>', methods=['GET', 'POST'])
+def done(session_id, asin, options):
+    """Dummy route to allow url_for('done') to work."""
+    pass
 
 
 class WebAgentTextEnv(gym.Env):

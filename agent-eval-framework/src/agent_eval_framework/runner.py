@@ -177,14 +177,15 @@ def run_evaluation(config_path: str):
     run_name_prefix = config.get("run_name_prefix", "eval")
     run_name = f"{run_name_prefix}-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{eval_run_id[:4]}"
 
-    with aiplatform.start_run(run_name=run_name) as my_run:
+    with aiplatform.start_run(run=run_name) as my_run:
+        my_run.display_name = run_name
         log.info(f"--- Starting Experiment Run: {my_run.name} ---")
 
         # Log parameters from the config
         my_run.log_params(config.get("agent_config", {}))
         my_run.log_params({
             "dataset": config["dataset_path"],
-            "metrics_config": config["metrics"],
+            "metrics_config": json.dumps(config["metrics"]),
             "eval_run_id": eval_run_id
         })
         log.info("Logged run parameters.")
