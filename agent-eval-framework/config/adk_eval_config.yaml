@@ -1,9 +1,7 @@
 # agent-eval-framework/config/adk_eval_config.yaml
-agent_adapter_class: "agent_eval_framework.adapters.adk_adapter.ADKAgentAdapter"
+agent_adapter_class: "tests.dummy_adapter.DummyAgentAdapter"
 
-agent_config:
-  agent_module: "personalized_shopping.agent"
-  agent_name: "root_agent"
+agent_config: {}
 
 dataset_path: "data/simple.test.jsonl"
 

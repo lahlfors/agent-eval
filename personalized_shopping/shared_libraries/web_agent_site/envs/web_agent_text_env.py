@@ -20,8 +20,8 @@ import time
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 from flask import Flask
-import gym
-from gym.envs.registration import register
+import gymnasium as gym
+from gymnasium.envs.registration import register
 import numpy as np
 import torch
 

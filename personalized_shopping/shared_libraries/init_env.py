@@ -21,7 +21,7 @@ used by the agent's tools.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import gym
+import gymnasium as gym
 
 # Register the custom web environment with Gym if it's not already registered.
 gym.envs.registration.register(

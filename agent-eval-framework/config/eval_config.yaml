@@ -1,6 +1,5 @@
-agent_adapter_class: "agent_eval_framework.adapters.personalized_shopping_adapter.PersonalizedShoppingAdapter"
-agent_config:
-  agent_module_path: "personalized_shopping.agent"
+agent_adapter_class: "tests.dummy_adapter.DummyAgentAdapter"
+agent_config: {}
 
 dataset_path: "data/simple.test.jsonl" # Relative to agent-eval-framework root
 

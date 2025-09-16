@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
+# import torch
 
 # Workaround to Resolve the PyTorch-Streamlit Incompatibility Issue
-torch.classes.__path__ = []
+# torch.classes.__path__ = []
 
 from .shared_libraries.init_env import init_env, get_webshop_env
 from .agent import root_agent
