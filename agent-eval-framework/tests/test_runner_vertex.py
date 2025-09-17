@@ -27,8 +27,8 @@ def unique_run_suffix():
 
 @pytest.fixture(scope="function")
 def vertex_ai_context_manager(eval_config, unique_run_suffix):
-    project_id = os.getenv("GCP_PROJECT_ID")
-    location = os.getenv("GCP_REGION")
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    location = os.getenv("GOOGLE_CLOUD_LOCATION")
 
     experiment_name = eval_config.get("experiment_name", "default-experiment")
     run_name_prefix = eval_config.get("run_name_prefix", "run")
@@ -43,20 +43,21 @@ def vertex_ai_context_manager(eval_config, unique_run_suffix):
 
     yield experiment_run_name # Pass the intended run name to the test
 
-    # Teardown: Attempt to delete the context with the PREPENDED name
-    print(f"Tearing down: Attempting to delete context {actual_context_id}")
-    try:
-        context_to_delete = aiplatform.Context.get(resource_id=actual_context_id)
-        context_to_delete.delete()
-        print(f"Successfully deleted context: {actual_context_id}")
-    except exceptions.NotFound:
-        print(f"Context {actual_context_id} not found during teardown.")
-    except Exception as e:
-        print(f"Error deleting context {actual_context_id} during teardown: {e}")
+    # --- CLEANUP TEMPORARILY DISABLED ---
+    print("Teardown disabled. Run will be preserved in Vertex AI.")
+    # print(f"Tearing down: Attempting to delete context {actual_context_id}")
+    # try:
+    #     context_to_delete = aiplatform.Context.get(resource_id=actual_context_id)
+    #     context_to_delete.delete()
+    #     print(f"Successfully deleted context: {actual_context_id}")
+    # except exceptions.NotFound:
+    #     print(f"Context {actual_context_id} not found during teardown.")
+    # except Exception as e:
+    #     print(f"Error deleting context {actual_context_id} during teardown: {e}")
 
 def test_shopping_agent_vertex_eval(vertex_ai_context_manager, eval_config): # Inject fixtures
-    if not os.getenv("GCP_PROJECT_ID") or not os.getenv("GCP_REGION"):
-        pytest.skip("GCP_PROJECT_ID and GCP_REGION must be set in .env file to run Vertex AI evaluations.")
+    if not os.getenv("GOOGLE_CLOUD_PROJECT") or not os.getenv("GOOGLE_CLOUD_LOCATION"):
+        pytest.skip("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set in .env file to run Vertex AI evaluations.")
 
     experiment_run_name = vertex_ai_context_manager # Get the unique run name
 

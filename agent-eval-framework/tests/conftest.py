@@ -15,7 +15,7 @@ def pytest_configure(config):
         print(f"conftest.py: Loading environment variables from: {dotenv_path}")
         dotenv.load_dotenv(dotenv_path=dotenv_path, override=True)
         # Optional: Verify they are loaded
-        # print(f"[DEBUG] GCP_PROJECT_ID in conftest: {os.getenv('GCP_PROJECT_ID')}")
-        # print(f"[DEBUG] GCP_REGION in conftest: {os.getenv('GCP_REGION')}")
+        # print(f"[DEBUG] GOOGLE_CLOUD_PROJECT in conftest: {os.getenv('GOOGLE_CLOUD_PROJECT')}")
+        # print(f"[DEBUG] GOOGLE_CLOUD_LOCATION in conftest: {os.getenv('GOOGLE_CLOUD_LOCATION')}")
     else:
         print(f"conftest.py: .env file not found at {dotenv_path}")
