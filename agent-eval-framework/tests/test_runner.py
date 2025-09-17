@@ -32,7 +32,7 @@ def test_run_evaluation(mocker):
     mock_eval_result.summary_metrics = {"some_metric": 1.0}
     mock_eval_result.metrics_table = pd.DataFrame() # Mock metrics_table as an empty DataFrame
 
-    mock_eval_task_class = mocker.patch('vertexai.evaluation.EvalTask')
+    mock_eval_task_class = mocker.patch('vertexai.preview.evaluation.EvalTask')
     mock_eval_task_instance = mock_eval_task_class.return_value
     mock_eval_task_instance.evaluate.return_value = mock_eval_result
 

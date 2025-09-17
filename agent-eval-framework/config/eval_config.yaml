@@ -12,12 +12,9 @@ prompt_column: "prompt" # Column to use as input to the agent
 target_column: "reference_response" # Column to use as the ground truth response
 
 metrics:
-  - name: "exact_match"
-    type: "computation"
-  - name: "bleu"
-    type: "computation"
-  - name: "rouge"
-    type: "computation"
+  - "exact_match"
+  - "bleu"
+  - "rouge"
   # Example for Pointwise (Model-Based)
   # - name: "coherence"
   #   type: "pointwise"

@@ -78,9 +78,8 @@ class ADKAgentAdapter:
             try:
                 result = asyncio.run(self._run_agent_async(prompt))
                 predicted_trajectory_list = result.get("predicted_trajectory_list", [])
-                # This column is a JSON string of the wrapped dict for general purpose.
-                result["predicted_trajectory"] = json.dumps({"tool_calls": predicted_trajectory_list})
-                # predicted_trajectory_list is already in result for metric_column_mapping
+                # Return the raw list for the mapping
+                result["predicted_trajectory"] = predicted_trajectory_list
                 result["response"] = result.get("response", "")
                 span.set_attribute("response", result.get("response"))
                 return result
@@ -91,7 +90,6 @@ class ADKAgentAdapter:
                     span.record_exception(e)
                 return {
                     "response": "ADAPTER_ERROR",
-                    "predicted_trajectory": json.dumps({"tool_calls": []}),
-                    "predicted_trajectory_list": [],
+                    "predicted_trajectory": [], # Raw list
                     "error": str(e)
                 }

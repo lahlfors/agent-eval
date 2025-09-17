@@ -59,23 +59,23 @@ def index(session_id=None):
     pass
 
 # Add dummy routes for all endpoints used in url_for in the templates
-@app.route('/search_results/<session_id>/<keywords>/<page>')
-def search_results(session_id, keywords, page):
+@app.route('/search_results/<session_id>/<page>')
+def search_results(session_id, page):
     """Dummy route to allow url_for('search_results') to work."""
     pass
 
-@app.route('/item_page/<session_id>/<asin>/<keywords>/<page>/<options>')
-def item_page(session_id, asin, keywords, page, options):
+@app.route('/item_page/<session_id>/<asin>/<page>')
+def item_page(session_id, asin, page):
     """Dummy route to allow url_for('item_page') to work."""
     pass
 
-@app.route('/item_sub_page/<session_id>/<asin>/<keywords>/<page>/<sub_page>/<options>')
-def item_sub_page(session_id, asin, keywords, page, sub_page, options):
+@app.route('/item_sub_page/<session_id>/<asin>/<page>/<sub_page>')
+def item_sub_page(session_id, asin, page, sub_page):
     """Dummy route to allow url_for('item_sub_page') to work."""
     pass
 
-@app.route('/done/<session_id>/<asin>/<options>')
-def done(session_id, asin, options):
+@app.route('/done/<session_id>/<asin>')
+def done(session_id, asin):
     """Dummy route to allow url_for('done') to work."""
     pass
 

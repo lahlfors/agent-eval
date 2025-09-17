@@ -127,19 +127,18 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
                 if df_dataset[col].isnull().any():
                     df_dataset[col] = df_dataset[col].fillna('')
 
-        # Create _list columns for trajectory metrics
         def extract_tool_calls(traj_input):
-            if isinstance(traj_input, str):
-                try: data = json.loads(traj_input)
-                except json.JSONDecodeError: return []
-            elif isinstance(traj_input, dict): data = traj_input
-            else: return []
-            return data.get("tool_calls", [])
+            try:
+                if isinstance(traj_input, str): data = json.loads(traj_input)
+                elif isinstance(traj_input, dict): data = traj_input
+                else: return []
+                return data.get("tool_calls", [])
+            except: return []
 
         if "reference_trajectory" in df_dataset.columns:
-            df_dataset["reference_trajectory_list"] = df_dataset["reference_trajectory"].apply(extract_tool_calls)
+            df_dataset["reference_trajectory"] = df_dataset["reference_trajectory"].apply(extract_tool_calls)
         else:
-             df_dataset["reference_trajectory_list"] = [[] for _ in range(len(df_dataset))]
+             df_dataset["reference_trajectory"] = [[] for _ in range(len(df_dataset))]
 
         metrics = _build_metrics(config["metrics"])
         run_name = experiment_run_name or f"{config.get('run_name_prefix', 'eval')}-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4()}"
@@ -151,13 +150,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         eval_task = EvalTask(
              dataset=df_dataset,
              metrics=metrics,
-             experiment=experiment_name,
-             metric_column_mapping={
-                "prediction": "response", # For text-based metrics
-                "reference": "reference", # For text-based metrics
-                "predicted_trajectory": "predicted_trajectory_list", # For trajectory metrics
-                "reference_trajectory": "reference_trajectory_list"  # For trajectory metrics
-             }
+             experiment=experiment_name
         )
         sys.stdout.write("runner.py: EvalTask created\n")
         sys.stdout.flush()
