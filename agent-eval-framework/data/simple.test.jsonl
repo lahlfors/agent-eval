@@ -1,3 +1,3 @@
-{"query": "Find me a floral dress", "reference_answer": "I found several floral dresses.", "trajectory": [{"tool_name": "search", "tool_input": {"keywords": "floral dress"}}]}
-{"query": "Click on the first one", "reference_answer": "Here are the details of the first dress.", "trajectory": [{"tool_name": "click", "tool_input": {"button_name": "item_1"}}]}
-{"query": "Hello, who are you?", "reference_response": "I am a webshop agent.", "trajectory": []}
+{"query": "Find me a floral dress", "reference_answer": "I found several floral dresses.", "trajectory": {"tool_calls": [{"tool_name": "search", "tool_input": {"keywords": "floral dress"}}]}}
+{"query": "Click on the first one", "reference_answer": "Here are the details of the first dress.", "trajectory": {"tool_calls": [{"tool_name": "click", "tool_input": {"button_name": "item_1"}}]}}
+{"query": "Hello, who are you?", "reference_response": "I am a webshop agent.", "trajectory": {"tool_calls": []}}

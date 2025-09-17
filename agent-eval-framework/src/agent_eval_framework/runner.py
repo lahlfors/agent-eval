@@ -1,5 +1,17 @@
 # Copyright 2024 Google LLC
-# ... (license headers) ...
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 """Core logic for orchestrating and executing agent evaluations."""
 
@@ -11,7 +23,6 @@ import dotenv
 import tempfile
 import pandas as pd
 import vertexai
-from vertexai.preview.evaluation import EvalTask
 from google.cloud import aiplatform
 from google.cloud import storage
 from typing import List, Dict, Any, Union, Type
@@ -19,9 +30,14 @@ import pathlib
 import uuid
 from datetime import datetime
 import traceback # Import traceback
+import math
 
+# CORRECTED IMPORTS:
+# Import the PREVIEW EvalTask for agent evaluation
+from vertexai.preview.evaluation import EvalTask
 # Import the preview metrics module ONLY for TrajectorySingleToolUse
 from vertexai.preview.evaluation import metrics as preview_metrics
+# Keep these for other metric types if needed
 from vertexai.evaluation import CustomMetric, PointwiseMetric, MetricPromptTemplateExamples
 
 from .utils.logger import get_logger, set_log_context
@@ -56,65 +72,52 @@ def _download_gcs_file(gcs_uri: str) -> str:
         log.error(f"Failed to download {gcs_uri}", exc_info=True)
         raise RuntimeError(f"Failed to download {gcs_uri}: {e}")
 
-def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Any]:
+def _build_metrics(metrics_config: List[Union[str, Dict[str, Any]]]) -> List[Any]:
     """Builds the list of metric objects for the vertexai.evaluation.EvalTask."""
     metrics = []
     for metric_spec in metrics_config:
-        metric_name = metric_spec["name"]
-        metric_type = metric_spec.get("type")
-        log.debug(f"Building metric: {metric_name}, type: {metric_type}")
-
-        # Standard Trajectory Metrics (as strings for server-side execution)
-        if metric_name in [
-            "trajectory_exact_match",
-            "trajectory_in_order_match",
-            "trajectory_any_order_match",
-            "trajectory_precision",
-            "trajectory_recall",
-        ]:
-            if metric_type:
-                 log.warning(f"Built-in trajectory metric '{metric_name}' does not need a 'type'. Found '{metric_type}'. Will be treated as server-side.")
+        if isinstance(metric_spec, str):
+            metric_name = metric_spec
+            log.debug(f"Building metric: {metric_name} (from string)")
             metrics.append(metric_name)
-            log.info(f"Appended built-in server-side trajectory metric: {metric_name}")
+            log.info(f"Appended built-in metric: {metric_name}")
 
-        # Special Case: TrajectorySingleToolUse (requires instantiation)
-        elif metric_name == "trajectory_single_tool_use":
-            tool_name = metric_spec.get("tool_name")
-            if not tool_name:
-                raise ValueError(f"'{metric_name}' requires a 'tool_name' field in the config.")
-            try:
-                metrics.append(preview_metrics.TrajectorySingleToolUse(tool_name=tool_name))
-                log.info(f"Appended TrajectorySingleToolUse metric for tool: {tool_name}")
-            except AttributeError:
-                 log.error(f"'{metric_name}' class not found in preview_metrics. Check SDK version.")
-                 raise
+        elif isinstance(metric_spec, dict):
+            metric_name = metric_spec["name"]
+            metric_type = metric_spec.get("type")
+            log.debug(f"Building metric: {metric_name}, type: {metric_type} (from dict)")
 
-        # Standard Computation Metrics (Server-Side)
-        elif metric_type == "computation":
-            metrics.append(metric_name)
-
-        # Model-based Pointwise Metrics (Server-Side)
-        elif metric_type == "pointwise":
-            metric_prompt_template = metric_spec.get("metric_prompt_template")
-            if not metric_prompt_template:
-                 try:
-                     metric_prompt_template = MetricPromptTemplateExamples.get_prompt_template(metric_name)
-                 except ValueError:
-                     raise ValueError(f"Pointwise metric '{metric_name}' needs a 'metric_prompt_template' or be a valid example name.")
-            metrics.append(PointwiseMetric(
-                metric=metric_name,
-                metric_prompt_template=metric_prompt_template,
-            ))
-
-        # Custom Function Metrics (Client-Side)
-        elif metric_type == "custom_function":
-            custom_function = load_class(metric_spec["custom_function_path"])
-            metrics.append(CustomMetric(
-                name=metric_name,
-                metric_function=custom_function
-            ))
+            if metric_name == "trajectory_single_tool_use":
+                tool_name = metric_spec.get("tool_name")
+                if not tool_name:
+                    raise ValueError(f"'{metric_name}' requires a 'tool_name' field in the config.")
+                try:
+                    metrics.append(preview_metrics.TrajectorySingleToolUse(tool_name=tool_name))
+                    log.info(f"Appended TrajectorySingleToolUse metric for tool: {tool_name}")
+                except AttributeError:
+                     log.error(f"'{metric_name}' class not found in preview_metrics. Check SDK version.")
+                     raise
+            elif metric_type == "pointwise":
+                metric_prompt_template = metric_spec.get("metric_prompt_template")
+                if not metric_prompt_template:
+                     try:
+                         metric_prompt_template = MetricPromptTemplateExamples.get_prompt_template(metric_name)
+                     except ValueError:
+                         raise ValueError(f"Pointwise metric '{metric_name}' needs a 'metric_prompt_template' or be a valid example name.")
+                metrics.append(PointwiseMetric(
+                    metric=metric_name,
+                    metric_prompt_template=metric_prompt_template,
+                ))
+            elif metric_type == "custom_function":
+                custom_function = load_class(metric_spec["custom_function_path"])
+                metrics.append(CustomMetric(
+                    name=metric_name,
+                    metric_function=custom_function
+                ))
+            else:
+                 raise ValueError(f"Unsupported metric configuration for: {metric_name} with type: {metric_type}")
         else:
-            raise ValueError(f"Unsupported metric: {metric_name} with type: {metric_type}")
+            raise TypeError(f"Invalid metric specification type: {type(metric_spec)}")
     return metrics
 
 def run_evaluation(config_path: str, experiment_run_name: str = None):
@@ -127,7 +130,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
     set_log_context(eval_run_id=eval_run_id, user_id="agent-eval-framework")
     log.info("Starting evaluation run", extra={"config_path": config_path})
 
-    project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
+    project_root = pathlib.Path(__file__).resolve().parent.parent.parent
     dotenv_path = project_root / ".env"
     if dotenv_path.exists():
         log.debug(f"Loading environment variables from: {dotenv_path}")
@@ -137,10 +140,8 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
 
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
     location = os.getenv("GOOGLE_CLOUD_LOCATION")
-    if not project_id or not location:
-        raise EnvironmentError(
-            "GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set in the .env file at the project root."
-        )
+    if not project_id or not location or project_id == "your-project-id-here":
+        raise EnvironmentError("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set in the .env file at the project root.")
 
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -161,7 +162,8 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
     if dataset_path.startswith("gs://"):
         local_dataset_path = _download_gcs_file(dataset_path)
     else:
-        possible_path = project_root / "agent-eval-framework" / dataset_path
+        # Adjust path to be relative to the project root
+        possible_path = project_root / dataset_path
         if os.path.exists(possible_path):
              local_dataset_path = possible_path
         elif os.path.exists(dataset_path):
@@ -181,20 +183,39 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
     df_dataset.rename(columns=column_mapping, inplace=True)
 
     prompt_col = config.get("prompt_column", "prompt")
-    target_col = config.get("target_column", "reference_response")
-    df_dataset.rename(columns={
-        prompt_col: "prompt",
-        target_col: "reference",
-    }, inplace=True, errors='ignore')
+    target_col = config.get("target_column", "reference")
 
-    if "prompt" not in df_dataset.columns:
-        raise ValueError(f"'{prompt_col}' (mapped to 'prompt') column not found in dataset.")
-    if "reference" not in df_dataset.columns:
-        log.warning(f"'{target_col}' (mapped to 'reference') column not found. Some metrics may not work.")
+    if prompt_col not in df_dataset.columns:
+         raise ValueError(f"'{prompt_col}' column not found in dataset after mapping.")
+    if target_col not in df_dataset.columns:
+         log.warning(f"'{target_col}' column not found in dataset after mapping. Some metrics may not work.")
+
+    # NEW: Handle NaN values in columns used for metric API calls
+    cols_to_clean = ["prompt", "reference", "response", "predicted_trajectory", "reference_trajectory"]
+    for col in cols_to_clean:
+        if col in df_dataset.columns:
+            if df_dataset[col].isnull().any():
+                log.warning(f"NaN values found in column '{col}', replacing with empty string for API compatibility.")
+                df_dataset[col] = df_dataset[col].fillna('')
+
+            # Ensure trajectory columns are JSON strings
+            if col in ["predicted_trajectory", "reference_trajectory"]:
+                def sanitize_traj(traj):
+                    if isinstance(traj, str):
+                        try:
+                            json.loads(traj) # Check if valid JSON
+                            return traj
+                        except json.JSONDecodeError:
+                            return json.dumps({"tool_calls": []}) # Recover from bad string
+                    elif isinstance(traj, dict) and "tool_calls" in traj:
+                         return json.dumps(traj)
+                    elif isinstance(traj, list):
+                         return json.dumps({"tool_calls": traj})
+                    return json.dumps({"tool_calls": []})
+                df_dataset[col] = df_dataset[col].apply(sanitize_traj)
 
     metrics = _build_metrics(config["metrics"])
 
-    # --- NEW: Start an Experiment Run ---
     if not experiment_run_name:
         run_name_prefix = config.get("run_name_prefix", "eval")
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -203,14 +224,14 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
     else:
         run_name = experiment_run_name
 
+    # Use the imported EvalTask from vertexai.preview.evaluation
     eval_task = EvalTask(
         dataset=df_dataset,
         metrics=metrics,
         experiment=experiment_name
     )
 
-    log.info("Running evaluation using vertexai.evaluation.EvalTask...")
-    # The evaluate() method will automatically create a run when experiment_run_name is passed.
+    log.info("Running evaluation using vertexai.preview.evaluation.EvalTask...")
     eval_result = eval_task.evaluate(
         runnable=adapter,
         experiment_run_name=run_name
@@ -222,7 +243,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
 
     print("\n--- Evaluation Results ---")
     print(f"Vertex AI Experiment: {experiment_name}, Run: {run_name}")
-    print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
+    # print("GCS Output Directory for this run:", eval_result.gcs_output_dir) # Removed
     print("\nSummary Metrics:")
     print(summary_metrics)
 
@@ -239,7 +260,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
             "summary_metrics": summary_metrics,
             "metrics_table": eval_result.metrics_table.to_dict(orient='records'),
             "dataset_path": config.get("dataset_path"),
-            "gcs_output_dir": eval_result.gcs_output_dir,
+            # "gcs_output_dir": eval_result.gcs_output_dir, # Removed
         }
         log.info("Evaluation results payload", extra={"payload": eval_payload})
     except Exception as e:
