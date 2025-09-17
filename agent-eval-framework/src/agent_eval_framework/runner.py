@@ -81,7 +81,7 @@ def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, eval
             raise ValueError(f"Unknown metric type: {metric_type}")
     return metrics
 
-def run_evaluation(config_path: str):
+def run_evaluation(config_path: str, experiment_run_name: str = None):
     """Runs the full, configuration-driven evaluation pipeline with Vertex AI Experiment tracking."""
     # --- NEW: Setup OpenTelemetry early ---
     otel_config.setup_opentelemetry()
@@ -174,8 +174,13 @@ def run_evaluation(config_path: str):
     metrics = _build_metrics(config["metrics"])
 
     # --- NEW: Start an Experiment Run ---
-    run_name_prefix = config.get("run_name_prefix", "eval")
-    run_name = f"{run_name_prefix}-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{eval_run_id[:4]}"
+    if not experiment_run_name:
+        run_name_prefix = config.get("run_name_prefix", "eval")
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        run_name = f"{run_name_prefix}-{timestamp}-{unique_id}"
+    else:
+        run_name = experiment_run_name
 
     with aiplatform.start_run(run=run_name) as my_run:
         my_run.display_name = run_name
