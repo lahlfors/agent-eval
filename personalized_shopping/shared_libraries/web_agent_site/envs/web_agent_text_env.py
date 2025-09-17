@@ -107,6 +107,9 @@ class WebAgentTextEnv(gym.Env):
         show_attrs
         """
         super(WebAgentTextEnv, self).__init__()
+        # These lines are required by the new Gymnasium API
+        self.observation_space = gym.spaces.Text(max_length=1000000, charset=string.printable)
+        self.action_space = gym.spaces.Text(max_length=1000, charset=string.printable)
         self.observation_mode = observation_mode
         self.kwargs = kwargs
 
@@ -290,7 +293,7 @@ class WebAgentTextEnv(gym.Env):
                 observation += processed_t + "\n"
             return observation
 
-    def reset(self, session=None, instruction_text=None):
+    def reset(self, session=None, instruction_text=None, *, seed=None, options=None):
         """Create a new session and reset environment variables"""
         session_int = None
         if session is not None:
@@ -443,7 +446,7 @@ class SimServer:
                      product_info = self.product_item_dict[session["asin"]]
                      session["actions"][clickable_name] += 1
                      url = f"{self.base_url}/item_sub_page/{session_id}/{session['asin']}/{'+'.join(session['keywords'])}/{session['page']}/{clickable_name}/{session['options']}"
-                     html = map_action_to_html(f"click[{clickable_name}]", session_id=session_id, product_info=product_info, keywords=session["keywords"], page=session["page"], asin=session["asin"], options=session["options"], instruction_text=instruction_text)
+                     html = map_action_to_html(f"click[{clickable_name}]", session_id=session_id, product_info=product_info, keywords=session["keywords"], page=page, asin=session["asin"], options=session["options"], instruction_text=instruction_text)
                 else: # item page or option click
                      html, url = self.item_page(session_id, session["asin"], session["keywords"], session["page"], session["options"], instruction_text, **kwargs)
             else:

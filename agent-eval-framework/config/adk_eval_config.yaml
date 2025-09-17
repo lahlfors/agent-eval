@@ -15,8 +15,6 @@ column_mapping:
   trajectory: "reference_trajectory"
 
 metrics:
-  - name: "trajectory_exact_match" # Use the native Vertex AI metric
-    type: "computation"
   - name: "exact_match"
     type: "computation"
   - name: "bleu"
@@ -32,4 +30,4 @@ metrics:
   #   custom_function_path: "my_metrics.tool_check.calculate_tool_accuracy"
 
 experiment_name: "personalized-shopping-adk-eval"
-run_name_prefix: "eval-run-16"
+run_name_prefix: "eval-run-final-20"
