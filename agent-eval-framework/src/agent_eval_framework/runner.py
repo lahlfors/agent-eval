@@ -190,24 +190,6 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
     if "reference" not in df_dataset.columns:
         log.warning(f"'{target_col}' (mapped to 'reference') column not found. Some metrics may not work.")
 
-    log.info("Generating agent responses...")
-    actual_responses = []
-    # ... (response generation loop as before) ...
-    for index, record in df_dataset.iterrows():
-        prompt = record.get("prompt")
-        if not prompt:
-            log.warning(f"No prompt found in record {index}")
-            actual_responses.append("NO_PROMPT")
-            continue
-        try:
-            response_data = adapter.get_response(prompt)
-            actual_responses.append(response_data.get("actual_response", "NO_RESPONSE"))
-        except Exception as e:
-            log.error(f"Adapter failed for prompt '{prompt}'", exc_info=True)
-            actual_responses.append("AGENT_EXECUTION_ERROR")
-    df_dataset["response"] = actual_responses
-    log.info("Finished generating agent responses.")
-
     metrics = _build_metrics(config["metrics"])
 
     # --- NEW: Start an Experiment Run ---
@@ -228,6 +210,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
     log.info("Running evaluation using vertexai.evaluation.EvalTask...")
     # The evaluate() method will automatically create a run when experiment_run_name is passed.
     eval_result = eval_task.evaluate(
+        runnable=adapter,
         experiment_run_name=run_name
     )
     log.info("Evaluation complete.")
