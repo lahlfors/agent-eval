@@ -19,3 +19,8 @@ def pytest_configure(config):
         # print(f"[DEBUG] GOOGLE_CLOUD_LOCATION in conftest: {os.getenv('GOOGLE_CLOUD_LOCATION')}")
     else:
         print(f"conftest.py: .env file not found at {dotenv_path}")
+
+    from agent_eval_framework import otel_config
+    print("conftest.py: Setting up OpenTelemetry...")
+    otel_config.setup_opentelemetry()
+    print("conftest.py: OpenTelemetry setup complete.")
