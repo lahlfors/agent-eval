@@ -20,8 +20,8 @@ import time
 from bs4 import BeautifulSoup
 from bs4.element import Comment
 from flask import Flask
-import gymnasium as gym
-from gymnasium.envs.registration import register
+import gym
+from gym.envs.registration import register
 import numpy as np
 import torch
 
@@ -52,36 +52,6 @@ from personalized_shopping.shared_libraries.web_agent_site.utils import (
 app = Flask(__name__)
 
 
-@app.route('/<session_id>', methods=['GET', 'POST'])
-def index(session_id):
-    """Dummy route to allow url_for('index') to work."""
-    pass
-
-
-@app.route('/search_results/<session_id>/<keywords>/<page>', methods=['GET', 'POST'])
-def search_results(session_id, keywords, page):
-    """Dummy route to allow url_for('search_results') to work."""
-    pass
-
-
-@app.route('/item_page/<session_id>/<asin>/<keywords>/<page>/<options>', methods=['GET', 'POST'])
-def item_page(session_id, asin, keywords, page, options):
-    """Dummy route to allow url_for('item_page') to work."""
-    pass
-
-
-@app.route('/item_sub_page/<session_id>/<asin>/<keywords>/<page>/<sub_page>/<options>', methods=['GET', 'POST'])
-def item_sub_page(session_id, asin, keywords, page, sub_page, options):
-    """Dummy route to allow url_for('item_sub_page') to work."""
-    pass
-
-
-@app.route('/done/<session_id>/<asin>/<options>', methods=['GET', 'POST'])
-def done(session_id, asin, options):
-    """Dummy route to allow url_for('done') to work."""
-    pass
-
-
 class WebAgentTextEnv(gym.Env):
     """Gym environment for Text mode of WebShop environment"""
 
@@ -107,9 +77,6 @@ class WebAgentTextEnv(gym.Env):
         show_attrs
         """
         super(WebAgentTextEnv, self).__init__()
-        # These lines are required by the new Gymnasium API
-        self.observation_space = gym.spaces.Text(max_length=1000000, charset=string.printable)
-        self.action_space = gym.spaces.Text(max_length=1000, charset=string.printable)
         self.observation_mode = observation_mode
         self.kwargs = kwargs
 
@@ -293,7 +260,7 @@ class WebAgentTextEnv(gym.Env):
                 observation += processed_t + "\n"
             return observation
 
-    def reset(self, session=None, instruction_text=None, *, seed=None, options=None):
+    def reset(self, session=None, instruction_text=None):
         """Create a new session and reset environment variables"""
         session_int = None
         if session is not None:
@@ -446,7 +413,7 @@ class SimServer:
                      product_info = self.product_item_dict[session["asin"]]
                      session["actions"][clickable_name] += 1
                      url = f"{self.base_url}/item_sub_page/{session_id}/{session['asin']}/{'+'.join(session['keywords'])}/{session['page']}/{clickable_name}/{session['options']}"
-                     html = map_action_to_html(f"click[{clickable_name}]", session_id=session_id, product_info=product_info, keywords=session["keywords"], page=page, asin=session["asin"], options=session["options"], instruction_text=instruction_text)
+                     html = map_action_to_html(f"click[{clickable_name}]", session_id=session_id, product_info=product_info, keywords=session["keywords"], page=session["page"], asin=session["asin"], options=session["options"], instruction_text=instruction_text)
                 else: # item page or option click
                      html, url = self.item_page(session_id, session["asin"], session["keywords"], session["page"], session["options"], instruction_text, **kwargs)
             else:

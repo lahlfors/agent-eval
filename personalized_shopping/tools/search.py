@@ -30,10 +30,10 @@ async def search(keywords: str, tool_context: ToolContext) -> str:
     status = {"reward": None, "done": False}
     action_string = f"search[{keywords}]"
     log.info(f"Performing search: {action_string}")
-    webshop_env.unwrapped.server.assigned_instruction_text = f"Find me {keywords}."
+    webshop_env.server.assigned_instruction_text = f"Find me {keywords}."
     _, status["reward"], status["done"], _ = webshop_env.step(action_string)
 
-    ob = webshop_env.unwrapped.observation
+    ob = webshop_env.observation
     index = ob.find("Back to Search")
     if index >= 0:
         ob = ob[index:]
@@ -43,10 +43,11 @@ async def search(keywords: str, tool_context: ToolContext) -> str:
 
     try:
         await tool_context.save_artifact(
-            artifact=types.ContentDict(
-                parts=[{"text": webshop_env.unwrapped.state["html"]}]
+            content=types.ContentDict(
+                parts=[{"text": webshop_env.state["html"]}]
             ),
-            filename="search_artifact.html"  # Add this line
+            title=f"Search Results for {keywords}",
+            mime_type="text/html",
         )
     except Exception as e:
         log.warning(f"Error saving search artifact: {e}", exc_info=True)

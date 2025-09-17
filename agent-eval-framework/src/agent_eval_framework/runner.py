@@ -83,6 +83,7 @@ def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, eval
 
 def run_evaluation(config_path: str, experiment_run_name: str = None):
     """Runs the full, configuration-driven evaluation pipeline with Vertex AI Experiment tracking."""
+    print(f"[DEBUG] run_evaluation called with experiment_run_name: {experiment_run_name}")
     # --- NEW: Setup OpenTelemetry early ---
     otel_config.setup_opentelemetry()
     # ---
@@ -183,14 +184,13 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         run_name = experiment_run_name
 
     with aiplatform.start_run(run=run_name) as my_run:
-        my_run.display_name = run_name
         log.info(f"--- Starting Experiment Run: {my_run.name} ---")
 
         # Log parameters from the config
         my_run.log_params(config.get("agent_config", {}))
         my_run.log_params({
             "dataset": config["dataset_path"],
-            "metrics_config": json.dumps(config["metrics"]),
+            "metrics_config": config["metrics"],
             "eval_run_id": eval_run_id
         })
         log.info("Logged run parameters.")
