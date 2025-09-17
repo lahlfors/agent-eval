@@ -1,4 +1,6 @@
-# agent-eval-framework/config/adk_eval_config.yaml
+experiment_name: "personalized-shopping-adk-eval"
+run_name_prefix: "eval-run-32" # Increment for a clean run
+
 agent_adapter_class: "agent_eval_framework.adapters.adk_adapter.ADKAgentAdapter"
 
 agent_config:
@@ -8,28 +10,26 @@ agent_config:
 dataset_path: "data/simple.test.jsonl"
 
 column_mapping:
-  query: "prompt"
-  reference_answer: "reference"
-  # Map the 'trajectory' column from the dataset to the 'reference_trajectory'
-  # column expected by the native Vertex AI metric.
-  trajectory: "reference_trajectory"
+  # Maps a column in your DataFrame to the 'response' expected by some metrics
+  response: "response"
+  # Maps a column in your DataFrame to the 'reference' expected by some metrics
+  reference: "reference"
+  # CRITICAL for SERVER-SIDE trajectory metrics:
+  # DataFrame column containing the agent's actual tool calls
+  prediction: "predicted_trajectory"
+  # DataFrame column containing the ground truth tool calls
+  ground_truth: "reference_trajectory"
 
 metrics:
-  - name: "trajectory_exact_match" # Use the native Vertex AI metric
-    type: "computation"
-  - name: "exact_match"
-    type: "computation"
-  - name: "bleu"
-    type: "computation"
-  - name: "rouge_l_sum"
-    type: "computation"
-  # Example LLM-based metric from Vertex AI
-  # - name: "fluency"
-  #   type: "pointwise"
-  # Example custom metric (requires function in python path)
-  # - name: "my_tool_use_metric"
-  #   type: "custom_function"
-  #   custom_function_path: "my_metrics.tool_check.calculate_tool_accuracy"
+  # Vertex AI Server-Side Trajectory Metrics
+  - name: trajectory_exact_match
+  # - name: trajectory_precision
+  # - name: trajectory_recall
 
-experiment_name: "personalized-shopping-adk-eval"
-run_name_prefix: "eval-run"
+  # Standard Computation Metrics (Server-Side)
+  - name: exact_match
+    type: computation
+  - name: bleu
+    type: computation
+  - name: rouge_l_sum
+    type: computation

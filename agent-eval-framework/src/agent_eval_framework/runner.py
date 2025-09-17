@@ -12,12 +12,18 @@ import tempfile
 import pandas as pd
 import vertexai
 from vertexai import evaluation
-from google.cloud import aiplatform # Import aiplatform
+from google.cloud import aiplatform
 from google.cloud import storage
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Type
 import pathlib
 import uuid
 from datetime import datetime
+import traceback # Import traceback
+
+# Import the preview metrics module ONLY for TrajectorySingleToolUse
+from vertexai.preview.evaluation import metrics as preview_metrics
+from vertexai.evaluation import CustomMetric, PointwiseMetric, MetricPromptTemplateExamples
+
 from .utils.logger import get_logger, set_log_context
 from . import otel_config
 from IPython.display import display
@@ -50,35 +56,65 @@ def _download_gcs_file(gcs_uri: str) -> str:
         log.error(f"Failed to download {gcs_uri}", exc_info=True)
         raise RuntimeError(f"Failed to download {gcs_uri}: {e}")
 
-def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Union[str, evaluation.CustomMetric, evaluation.PointwiseMetric, evaluation.PairwiseMetric]]:
+def _build_metrics(metrics_config: List[Dict[str, Any]]) -> List[Any]:
     """Builds the list of metric objects for the vertexai.evaluation.EvalTask."""
     metrics = []
     for metric_spec in metrics_config:
-        metric_type = metric_spec.get("type", "computation")
         metric_name = metric_spec["name"]
+        metric_type = metric_spec.get("type")
         log.debug(f"Building metric: {metric_name}, type: {metric_type}")
 
-        if metric_type == "computation":
+        # Standard Trajectory Metrics (as strings for server-side execution)
+        if metric_name in [
+            "trajectory_exact_match",
+            "trajectory_in_order_match",
+            "trajectory_any_order_match",
+            "trajectory_precision",
+            "trajectory_recall",
+        ]:
+            if metric_type:
+                 log.warning(f"Built-in trajectory metric '{metric_name}' does not need a 'type'. Found '{metric_type}'. Will be treated as server-side.")
             metrics.append(metric_name)
+            log.info(f"Appended built-in server-side trajectory metric: {metric_name}")
+
+        # Special Case: TrajectorySingleToolUse (requires instantiation)
+        elif metric_name == "trajectory_single_tool_use":
+            tool_name = metric_spec.get("tool_name")
+            if not tool_name:
+                raise ValueError(f"'{metric_name}' requires a 'tool_name' field in the config.")
+            try:
+                metrics.append(preview_metrics.TrajectorySingleToolUse(tool_name=tool_name))
+                log.info(f"Appended TrajectorySingleToolUse metric for tool: {tool_name}")
+            except AttributeError:
+                 log.error(f"'{metric_name}' class not found in preview_metrics. Check SDK version.")
+                 raise
+
+        # Standard Computation Metrics (Server-Side)
+        elif metric_type == "computation":
+            metrics.append(metric_name)
+
+        # Model-based Pointwise Metrics (Server-Side)
         elif metric_type == "pointwise":
             metric_prompt_template = metric_spec.get("metric_prompt_template")
             if not metric_prompt_template:
                  try:
-                     metric_prompt_template = evaluation.MetricPromptTemplateExamples.get_prompt_template(metric_name)
+                     metric_prompt_template = MetricPromptTemplateExamples.get_prompt_template(metric_name)
                  except ValueError:
                      raise ValueError(f"Pointwise metric '{metric_name}' needs a 'metric_prompt_template' or be a valid example name.")
-            metrics.append(evaluation.PointwiseMetric(
+            metrics.append(PointwiseMetric(
                 metric=metric_name,
                 metric_prompt_template=metric_prompt_template,
             ))
+
+        # Custom Function Metrics (Client-Side)
         elif metric_type == "custom_function":
             custom_function = load_class(metric_spec["custom_function_path"])
-            metrics.append(evaluation.CustomMetric(
+            metrics.append(CustomMetric(
                 name=metric_name,
                 metric_function=custom_function
             ))
         else:
-            raise ValueError(f"Unknown metric type: {metric_type}")
+            raise ValueError(f"Unsupported metric: {metric_name} with type: {metric_type}")
     return metrics
 
 def run_evaluation(config_path: str, experiment_run_name: str = None):
@@ -183,59 +219,45 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
     else:
         run_name = experiment_run_name
 
-    with aiplatform.start_run(run=run_name) as my_run:
-        log.info(f"--- Starting Experiment Run: {my_run.name} ---")
+    eval_task = evaluation.EvalTask(
+        dataset=df_dataset,
+        metrics=metrics,
+        experiment=experiment_name
+    )
 
-        # Log parameters from the config
-        my_run.log_params(config.get("agent_config", {}))
-        my_run.log_params({
-            "dataset": config["dataset_path"],
-            "metrics_config": config["metrics"],
-            "eval_run_id": eval_run_id
-        })
-        log.info("Logged run parameters.")
+    log.info("Running evaluation using vertexai.evaluation.EvalTask...")
+    # The evaluate() method will automatically create a run when experiment_run_name is passed.
+    eval_result = eval_task.evaluate(
+        experiment_run_name=run_name
+    )
+    log.info("Evaluation complete.")
 
-        eval_task = evaluation.EvalTask(
-            dataset=df_dataset,
-            metrics=metrics,
-            experiment=experiment_name # Associate with the current experiment
-        )
+    summary_metrics = eval_result.summary_metrics
+    log.info(f"Summary Metrics: {summary_metrics}")
 
-        log.info("Running evaluation using vertexai.evaluation.EvalTask...")
-        eval_result = eval_task.evaluate(
-            experiment_run_name=my_run.name # Link EvalTask to this run
-        )
-        log.info("Evaluation complete.")
+    print("\n--- Evaluation Results ---")
+    print(f"Vertex AI Experiment: {experiment_name}, Run: {run_name}")
+    print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
+    print("\nSummary Metrics:")
+    print(summary_metrics)
 
-        # Log summary metrics
-        summary_metrics = eval_result.summary_metrics
-        my_run.log_metrics(summary_metrics)
-        log.info(f"Logged Summary Metrics: {summary_metrics}")
+    print("\nMetrics Table:")
+    display(eval_result.metrics_table)
 
-        print("\n--- Evaluation Results ---")
-        print(f"Vertex AI Experiment: {experiment_name}, Run: {my_run.name}")
-        print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
-        print("\nSummary Metrics:")
-        print(summary_metrics)
-        # --- END NEW ---
-
-        print("\nMetrics Table:")
-        display(eval_result.metrics_table)
-
-        try:
-            eval_payload = {
-                "event_type": "evaluation_result",
-                "eval_run_id": eval_run_id,
-                "config_path": config_path,
-                "experiment_name": experiment_name,
-                "run_name": my_run.name,
-                "summary_metrics": summary_metrics,
-                "metrics_table": eval_result.metrics_table.to_dict(orient='records'),
-                "dataset_path": config.get("dataset_path"),
-                "gcs_output_dir": eval_result.gcs_output_dir,
-            }
-            log.info("Evaluation results payload", extra={"payload": eval_payload})
-        except Exception as e:
-            log.error(f"Error logging eval results: {e}", exc_info=True)
+    try:
+        eval_payload = {
+            "event_type": "evaluation_result",
+            "eval_run_id": eval_run_id,
+            "config_path": config_path,
+            "experiment_name": experiment_name,
+            "run_name": run_name,
+            "summary_metrics": summary_metrics,
+            "metrics_table": eval_result.metrics_table.to_dict(orient='records'),
+            "dataset_path": config.get("dataset_path"),
+            "gcs_output_dir": eval_result.gcs_output_dir,
+        }
+        log.info("Evaluation results payload", extra={"payload": eval_payload})
+    except Exception as e:
+        log.error(f"Error logging eval results: {e}", exc_info=True)
 
     return eval_result
