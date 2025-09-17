@@ -43,12 +43,12 @@ class ADKAgentAdapter:
                                 tool_calls.append(tool_call_data)
 
             return {
-                "actual_response": final_text,
-                "predicted_trajectory": tool_calls  # Use key 'predicted_trajectory'
+                "response": final_text,
+                "predicted_trajectory": tool_calls
             }
         except Exception as e:
             print(f"Error during ADK agent async_stream_query: {e}")
-            return {"actual_response": "ADK_APP_ERROR", "error": str(e), "predicted_trajectory": []}
+            return {"response": "ADK_APP_ERROR", "error": str(e), "predicted_trajectory": []}
 
     def get_response(self, prompt: str) -> Dict[str, Any]:
         # Run the async method in a new event loop

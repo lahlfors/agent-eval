@@ -11,7 +11,7 @@ import dotenv
 import tempfile
 import pandas as pd
 import vertexai
-from vertexai import evaluation
+from vertexai.preview.evaluation import EvalTask
 from google.cloud import aiplatform
 from google.cloud import storage
 from typing import List, Dict, Any, Union, Type
@@ -135,10 +135,12 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
     else:
         log.warning(f".env file not found at {dotenv_path}")
 
-    project_id = os.getenv("GCP_PROJECT_ID")
-    location = os.getenv("GCP_REGION")
-    if not project_id or not location or project_id == "your-project-id-here":
-        raise EnvironmentError("GCP_PROJECT_ID and GCP_REGION must be set in the .env file at the project root.")
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    location = os.getenv("GOOGLE_CLOUD_LOCATION")
+    if not project_id or not location:
+        raise EnvironmentError(
+            "GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set in the .env file at the project root."
+        )
 
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -201,7 +203,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
     else:
         run_name = experiment_run_name
 
-    eval_task = evaluation.EvalTask(
+    eval_task = EvalTask(
         dataset=df_dataset,
         metrics=metrics,
         experiment=experiment_name
