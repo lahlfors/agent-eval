@@ -1,97 +1,97 @@
 import asyncio
-import json
-from google.adk.agents import Agent
-from google.adk.events import Event
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types
 import importlib
-from ..utils.logger import get_logger
-
-log = get_logger(__name__)
+from typing import Any, Dict, List
+import json
+import sys
+from vertexai.preview.reasoning_engines import AdkApp
+from opentelemetry import trace
+from .. import otel_config
 
 class ADKAgentAdapter:
-    def __init__(self, agent_module: str, agent_name: str, **kwargs):
+    def __init__(self, agent_module: str, agent_name: str = "root_agent", **kwargs):
         self.agent_module_str = agent_module
         self.agent_name = agent_name
         self.agent_config = kwargs
-        self._load_agent_class()
-        log.info(f"ADKAgentAdapter initialized for agent '{agent_name}'")
+        self.tracer = trace.get_tracer(__name__)
+        sys.stdout.write(f"ADKAgentAdapter: Tracer type in __init__: {type(self.tracer)}\n")
+        sys.stdout.flush()
+        self._load_and_wrap_agent()
+        sys.stdout.write(f"ADKAgentAdapter initialized for agent '{self.agent_name}' using AdkApp with tracing enabled.\n")
+        sys.stdout.flush()
 
-    def _load_agent_class(self):
+    def _load_and_wrap_agent(self):
         try:
             module = importlib.import_module(self.agent_module_str)
-            log.debug(f"{self.agent_module_str} module loaded.")
-            self.agent_class = getattr(module, self.agent_name)
-            log.debug(f"Successfully loaded agent class: {self.agent_name}")
-        except (ImportError, AttributeError) as e:
-            log.error(f"Could not load agent class {self.agent_name} from {self.agent_module_str}", exc_info=True)
-            raise ImportError(f"Could not load agent class {self.agent_name} from {self.agent_module_str}: {e}")
+            sys.stdout.write(f"{self.agent_module_str} module loaded.\n")
+            sys.stdout.flush()
+            agent = getattr(module, self.agent_name)
+            sys.stdout.write(f"Successfully loaded agent: {self.agent_name}\n")
+            sys.stdout.flush()
 
-    def _parse_adk_output_to_dictionary(self, events: list[Event]):
+            self.adk_app = AdkApp(agent=agent, enable_tracing=True)
+            sys.stdout.write("Agent wrapped with vertexai.preview.reasoning_engines.AdkApp with enable_tracing=True\n")
+            sys.stdout.flush()
+        except (ImportError, AttributeError) as e:
+            sys.stderr.write(f"Could not load agent {self.agent_name} from {self.agent_module_str}: {e}\n")
+            sys.stderr.flush()
+            raise ImportError(f"Could not load agent {self.agent_name} from {self.agent_module_str}: {e}")
+
+    def _parse_adk_output_to_dictionary(self, events: list[dict]):
         final_response = ""
         trajectory = []
         for event in events:
-            if not getattr(event, "content", None) or not getattr(event.content, "parts", None):
-                continue
-            for part in event.content.parts:
-                if getattr(part, "function_call", None):
-                    info = {
-                        "tool_name": part.function_call.name,
-                        "tool_input": dict(part.function_call.args),
-                    }
-                    if info not in trajectory:
-                        trajectory.append(info)
-            # Capture the last text part from the model as the final response
-            if event.content.role == "model":
-                for part in event.content.parts:
-                    if getattr(part, "text", None):
-                        final_response = part.text.strip()
+            content = event.get('content')
+            if not content or not content.get('parts'): continue
+            for part in content['parts']:
+                if 'functionCall' in part:
+                    func_call = part['functionCall']
+                    info = {"tool_name": func_call.get("name"), "tool_input": func_call.get("args", {})}
+                    if info not in trajectory: trajectory.append(info)
+                if content.get('role') == "model" and 'text' in part:
+                    final_response = part['text'].strip()
+        return {"response": final_response, "predicted_trajectory_list": trajectory}
 
-        return {"response": final_response, "predicted_trajectory": trajectory}
-
-    async def _run_agent_async(self, query: str):
-        app_name = "eval_app"
+    async def _run_agent_async(self, query: str) -> Dict[str, Any]:
+        otel_config.log_otel_status("ADKAgentAdapter._run_agent_async START")
         user_id = "eval_user"
-        session_id = str(hash(query)) # Session ID based on query
-
-        # Instantiate the agent
-        try:
-            agent = self.agent_class(**self.agent_config)
-        except Exception as e:
-            log.error(f"Error instantiating agent {self.agent_name}: {e}", exc_info=True)
-            raise
-
-        session_service = InMemorySessionService()
-        await session_service.create_session(app_name=app_name, user_id=user_id, session_id=session_id)
-
-        runner = Runner(agent=agent, app_name=app_name, session_service=session_service)
-        content = types.Content(role="user", parts=[types.Part(text=query)])
         events = []
-        async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
-            events.append(event)
-
-        return self._parse_adk_output_to_dictionary(events)
+        try:
+            async for event in self.adk_app.async_stream_query(user_id=user_id, message=query):
+                events.append(event)
+            return self._parse_adk_output_to_dictionary(events)
+        except Exception as e:
+            sys.stderr.write(f"Error during ADK agent async_stream_query: {e}\n")
+            sys.stderr.flush()
+            return {"response": "ADK_APP_ERROR", "predicted_trajectory_list": [], "error": str(e)}
 
     def __call__(self, prompt: str) -> dict:
-        """
-        Makes the adapter instance callable, as expected by EvalTask.evaluate(runnable=...).
-        """
-        try:
-            log.debug(f"ADKAgentAdapter called with prompt: {prompt}")
-            result = asyncio.run(self._run_agent_async(prompt))
-
-            # Wrap trajectory in {"tool_calls": [...]} and serialize to JSON
-            predicted_trajectory_list = result.get("predicted_trajectory", [])
-            wrapped_trajectory = {"tool_calls": predicted_trajectory_list}
-            result["predicted_trajectory"] = json.dumps(wrapped_trajectory)
-
-            log.debug(f"ADKAgentAdapter result: {result}")
-            return result
-        except Exception as e:
-            log.error(f"Error during ADK agent execution: {e}", exc_info=True)
-            return {
-                "response": "AGENT_EXECUTION_ERROR",
-                "predicted_trajectory": json.dumps({"tool_calls": []}),
-                "error": str(e)
-            }
+        sys.stdout.write(f"ADKAgentAdapter.__call__ called with prompt: {prompt}\n")
+        sys.stdout.flush()
+        otel_config.log_otel_status("ADKAgentAdapter.__call__ START")
+        local_tracer = trace.get_tracer(__name__)
+        sys.stdout.write(f"ADKAgentAdapter: Tracer type in __call__: {type(local_tracer)}\n")
+        sys.stdout.flush()
+        with local_tracer.start_as_current_span("ADKAgentAdapter.__call__") as span:
+            sys.stdout.write(f"Span 'ADKAgentAdapter.__call__' created: {span.get_span_context().is_valid}, Recording: {span.is_recording()}\n")
+            sys.stdout.flush()
+            span.set_attribute("prompt", prompt)
+            try:
+                result = asyncio.run(self._run_agent_async(prompt))
+                predicted_trajectory_list = result.get("predicted_trajectory_list", [])
+                # This column is a JSON string of the wrapped dict for general purpose.
+                result["predicted_trajectory"] = json.dumps({"tool_calls": predicted_trajectory_list})
+                # predicted_trajectory_list is already in result for metric_column_mapping
+                result["response"] = result.get("response", "")
+                span.set_attribute("response", result.get("response"))
+                return result
+            except Exception as e:
+                sys.stderr.write(f"Error in ADKAgentAdapter __call__: {e}\n")
+                sys.stderr.flush()
+                if span.is_recording():
+                    span.record_exception(e)
+                return {
+                    "response": "ADAPTER_ERROR",
+                    "predicted_trajectory": json.dumps({"tool_calls": []}),
+                    "predicted_trajectory_list": [],
+                    "error": str(e)
+                }
