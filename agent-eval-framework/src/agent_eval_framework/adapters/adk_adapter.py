@@ -72,7 +72,13 @@ class ADKAgentAdapter:
             span.set_attribute("session.id", session_id)
 
             try:
-                agent = self.agent_class(**self.agent_config)
+                # Check if the loaded "class" is actually an instance
+                if not isinstance(self.agent_class, type):
+                    # It's already an instance, just use it
+                    agent = self.agent_class
+                else:
+                    # It's a class, instantiate it
+                    agent = self.agent_class(**self.agent_config)
             except Exception as e:
                 log.error(f"Error instantiating agent {self.agent_name}: {e}", exc_info=True)
                 span.record_exception(e)
