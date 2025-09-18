@@ -33,11 +33,13 @@ agent-eval-framework = {path = "agent-eval-framework", develop = true}
 contextvars = { version = "*", python = ">=3.7" }
 google-cloud-storage = "^2.18.0"
 
-# OpenTelemetry Packages for OTLP export
+# OpenTelemetry Packages
+google-auth = "^2.30.0"
 opentelemetry-api = "^1.26.0"
 opentelemetry-sdk = "^1.26.0"
-opentelemetry-exporter-otlp-proto-grpc = "^1.26.0"
 opentelemetry-instrumentation-logging = "^0.47b0"
+google-cloud-trace = "^1.10.0"
+opentelemetry-exporter-gcp-trace = "^1.5.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^25.1.0"

@@ -1,85 +1,61 @@
-# agent-eval-framework/otel_config.py
+# agent_eval_framework/otel_config.py
 import os
-import importlib
-from typing import Dict, Any
-
-# Standard OpenTelemetry
+import sys
+import google.auth
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME
-
-# OTLP Exporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
-# Google Cloud Credentials
-import google.auth
-import google.auth.transport.grpc
-import google.auth.transport.requests
-import grpc
-from google.auth.transport.grpc import AuthMetadataPlugin
-
-# Utility
-from .utils.logger import get_logger
-
-log = get_logger(__name__)
+from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
 
 def setup_opentelemetry():
-    """Initializes OpenTelemetry to export traces to Google Cloud and Console."""
-    if hasattr(trace.get_tracer_provider(), "shutdown"):
-        current_provider = trace.get_tracer_provider()
-        if not isinstance(current_provider, trace.ProxyTracerProvider):
-             log.info("OpenTelemetry appears to be already configured.")
-             return
-        log.info("Replacing existing ProxyTracerProvider.")
-
+    """Sets up OpenTelemetry for the application to export to Google Cloud Trace."""
     try:
-        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-        if not project_id:
-            log.warning("⚠️ GOOGLE_CLOUD_PROJECT not set, OpenTelemetry tracing to GCP will be disabled.")
-            return
-
-        service_name = os.getenv("OTEL_SERVICE_NAME", "agent-eval-framework")
-
-        resource = Resource.create({
-            SERVICE_NAME: service_name,
-            "gcp.project_id": project_id,
-        })
-
-        tracer_provider = TracerProvider(resource=resource)
-        trace.set_tracer_provider(tracer_provider)
-
-        # 1. Console Exporter for local debugging
-        console_exporter = ConsoleSpanExporter()
-        tracer_provider.add_span_processor(SimpleSpanProcessor(console_exporter))
-        log.info("Added ConsoleSpanExporter for local trace visibility.")
-
-        # 2. OTLP Exporter for Google Cloud Trace
-        try:
-            credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/trace.append"])
-            request = google.auth.transport.requests.Request()
-            auth_metadata_plugin = AuthMetadataPlugin(credentials=credentials, request=request)
-            channel_creds = grpc.composite_channel_credentials(
-                grpc.ssl_channel_credentials(),
-                grpc.metadata_call_credentials(auth_metadata_plugin),
-            )
-
-            endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "telemetry.googleapis.com:443")
-            log.info(f"Configuring OTLP exporter for GCP with endpoint: {endpoint}")
-
-            otlp_exporter = OTLPSpanExporter(
-                endpoint=endpoint,
-                credentials=channel_creds
-            )
-            tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
-            log.info("Added OTLPSpanExporter for Google Cloud Trace.")
-
-        except Exception as e:
-            log.error(f"🔥 Failed to configure OTLP Exporter for GCP: {e}", exc_info=True)
-
-        log.info("✅ OpenTelemetry configured successfully for service: %s, project: %s", service_name, project_id)
-
-    except ImportError as e:
-        log.warning("⚠️ OpenTelemetry related libraries not found. Tracing will be disabled. Error: %s", e)
+        credentials, project_id = google.auth.default()
+        if not project_id: # Sometimes project_id is not in credentials
+            project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
     except Exception as e:
-        log.error(f"🔥 Failed to configure OpenTelemetry: {e}", exc_info=True)
+        sys.stdout.write(f"otel_config.py: WARNING: Error getting Google Cloud credentials: {e}\n")
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+
+    if not project_id:
+        sys.stdout.write("otel_config.py: CRITICAL: GOOGLE_CLOUD_PROJECT not set. Tracing to GCP will be disabled.\n")
+        sys.stdout.flush()
+        return
+
+    sys.stdout.write(f"otel_config.py: Setting up OpenTelemetry for project: {project_id}\n")
+
+    # Set up resource - identifies the service producing traces
+    resource = Resource.create({
+        SERVICE_NAME: "agent-eval-framework",
+        "gcp.project_id": project_id
+    })
+
+    # Set up trace provider
+    provider = TracerProvider(resource=resource)
+    trace.set_tracer_provider(provider)
+
+    # Configure Cloud Trace Exporter
+    try:
+        cloud_trace_exporter = CloudTraceSpanExporter(project_id=project_id)
+        # Register the exporter with the TraceProvider using a BatchSpanProcessor
+        trace.get_tracer_provider().add_span_processor(
+            BatchSpanProcessor(cloud_trace_exporter)
+        )
+        sys.stdout.write(f"otel_config.py: CloudTraceSpanExporter configured for project {project_id}.\n")
+    except Exception as e:
+        sys.stdout.write(f"otel_config.py: CRITICAL: Failed to configure CloudTraceSpanExporter: {e}\n")
+
+    sys.stdout.flush()
+
+def log_otel_status(context=""):
+    """Logs the current OpenTelemetry status."""
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    provider = trace.get_tracer_provider()
+    sys.stdout.write(f"otel_config.py: OTEL STATUS [{context}]: GOOGLE_CLOUD_PROJECT={project_id}\n")
+    sys.stdout.write(f"otel_config.py: OTEL STATUS [{context}]: Provider type: {type(provider)}\n")
+    if hasattr(provider, 'span_processors'):
+        sys.stdout.write(f"otel_config.py: OTEL STATUS [{context}]: Span Processors: {provider.span_processors}\n")
+    else:
+        sys.stdout.write(f"otel_config.py: OTEL STATUS [{context}]: Provider has no span_processors attribute.\n")
+    sys.stdout.flush()
