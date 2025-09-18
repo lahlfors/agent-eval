@@ -28,9 +28,7 @@ from personalized_shopping.tools.click import click
 from personalized_shopping.prompt import personalized_shopping_agent_instruction
 
 root_agent = Agent(
-
-    model="gemini-2.5-flash", # Or your preferred model
-
+    model="gemini-1.5-flash-001",
     name="personalized_shopping_agent",
     instruction=personalized_shopping_agent_instruction,
     tools=[
