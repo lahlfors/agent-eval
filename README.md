@@ -162,13 +162,25 @@ The key features of the personalized-shopping agent include:
 
 The evaluation assesses the agent's performance on tasks defined in the evalset.
 
-### Run Agent Evaluation
+### Run Agent Evaluation Tests
 
-The evaluation of the agent can be run from the project root directory using the `pytest` module:
+The `agent-eval-framework` comes with tests that demonstrate how to run evaluations in different scenarios.
+
+#### Local Unit Test (Mocked)
+This test runs the evaluation framework without any external dependencies. It uses a local agent adapter and mocks all calls to Google Cloud services, making it fast and suitable for CI/CD environments.
+
+Run the local test from the project root:
 ```bash
-python3 -m pytest eval
+pytest agent-eval-framework/tests/test_runner.py
 ```
-You can add more eval prompts by adding your dataset into the `eval/eval_data` folder. The judgment criteria are specified in `test_config.json`.
+
+#### Vertex Integration Test (Live)
+This test runs the full end-to-end evaluation pipeline against a live, deployed agent on Vertex AI. It requires your environment to be configured with Google Cloud credentials and an `AGENT_ENGINE_ID` in your `.env` file.
+
+Run the integration test from the project root:
+```bash
+pytest agent-eval-framework/tests/test_runner_vertex.py
+```
 
 ### Run Tool Unit Tests
 
