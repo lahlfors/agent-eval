@@ -216,8 +216,15 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         log.info(f"Vertex AI initialized for project: {project_id}, location: {location}, experiment: {experiment_name}")
         # --- END NEW ---
 
+
         adapter_class = load_class(config["agent_adapter_class"])
         adapter = adapter_class(**config.get("agent_config", {}))
+
+    print("\n--- Evaluation Results ---")
+    # print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
+    print("\nSummary Metrics:")
+    print(eval_result.summary_metrics)
+
 
         dataset_path = config["dataset_path"]
         local_dataset_path = None
