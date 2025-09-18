@@ -1,5 +1,16 @@
 # Copyright 2025 Google LLC
-# ... (license headers) ...
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Provides the `search` tool for the Personalized Shopping Agent."""
 
@@ -25,7 +36,22 @@ except ImportError:
     log = logging.getLogger(__name__)
 
 async def search(keywords: str, tool_context: ToolContext) -> str:
-    """Performs a keyword search in the webshop environment."""
+    """Performs a keyword search in the web shopping environment.
+
+    This tool takes a string of keywords, executes a search action in the
+    simulation, and returns the new observation (the text content of the
+
+    search results page). It also saves the full HTML of the results page as a
+    tool artifact for debugging.
+
+    Args:
+        keywords: The search terms to query.
+        tool_context: The context object provided by the ADK, used for
+            saving artifacts.
+
+    Returns:
+        A string representing the search results page's observation text.
+    """
     webshop_env = get_webshop_env()
     status = {"reward": None, "done": False}
     action_string = f"search[{keywords}]"
@@ -39,7 +65,6 @@ async def search(keywords: str, tool_context: ToolContext) -> str:
         ob = ob[index:]
 
     log.info("Search complete", extra={"status": status})
-    # print(f"observation: {ob}") # Optional: can be very long
 
     try:
         await tool_context.save_artifact(

@@ -1,4 +1,4 @@
-# Copyright 2024 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,7 +48,18 @@ from IPython.display import display
 log = get_logger(__name__)
 
 def load_class(import_str: str) -> type:
-    """Dynamically loads a class from a fully qualified string path."""
+    """Dynamically loads a class from a fully qualified string path.
+
+    Args:
+        import_str: The fully qualified path to the class
+            (e.g., "my_module.my_sub_module.MyClass").
+
+    Returns:
+        The loaded class object.
+
+    Raises:
+        ImportError: If the module or class cannot be found.
+    """
     module_path, class_name = import_str.rsplit('.', 1)
     try:
         module = importlib.import_module(module_path)
@@ -59,7 +70,17 @@ def load_class(import_str: str) -> type:
         raise ImportError(f"Could not load class {import_str}: {e}")
 
 def _download_gcs_file(gcs_uri: str) -> str:
-    """Downloads a file from Google Cloud Storage to a temporary local path."""
+    """Downloads a file from Google Cloud Storage to a temporary local path.
+
+    Args:
+        gcs_uri: The Google Cloud Storage URI of the file (e.g., "gs://bucket/file.jsonl").
+
+    Returns:
+        The local path to the downloaded temporary file.
+
+    Raises:
+        RuntimeError: If the file download fails.
+    """
     try:
         client = storage.Client()
         bucket_name, blob_name = gcs_uri.replace("gs://", "").split("/", 1)
@@ -74,7 +95,22 @@ def _download_gcs_file(gcs_uri: str) -> str:
         raise RuntimeError(f"Failed to download {gcs_uri}: {e}")
 
 def _build_metrics(metrics_config: List[Union[str, Dict[str, Any]]]) -> List[Any]:
-    """Builds the list of metric objects for the vertexai.evaluation.EvalTask."""
+    """Builds the list of metric objects for the vertexai.evaluation.EvalTask.
+
+    Parses the metrics configuration from the YAML file and instantiates the
+    corresponding metric classes from the Vertex AI SDK.
+
+    Args:
+        metrics_config: A list where each item is either a string (for a
+            built-in metric) or a dictionary defining a more complex metric.
+
+    Returns:
+        A list of instantiated metric objects ready for use in an EvalTask.
+
+    Raises:
+        ValueError: If the configuration for a metric is invalid or incomplete.
+        TypeError: If a metric specification is not a string or dictionary.
+    """
     metrics = []
     for metric_spec in metrics_config:
         if isinstance(metric_spec, str):
@@ -122,7 +158,33 @@ def _build_metrics(metrics_config: List[Union[str, Dict[str, Any]]]) -> List[Any
     return metrics
 
 def run_evaluation(config_path: str, experiment_run_name: str = None):
-    """Runs the full, configuration-driven evaluation pipeline with Vertex AI Experiment tracking."""
+    """Runs the full, configuration-driven evaluation pipeline.
+
+    This function orchestrates the entire evaluation process:
+    1.  Loads environment variables and the specified YAML configuration file.
+    2.  Initializes the Vertex AI SDK and a Vertex AI Experiment.
+    3.  Dynamically loads and instantiates the specified agent adapter.
+    4.  Loads the evaluation dataset (from a local or GCS path).
+    5.  Cleans and preprocesses the dataset.
+    6.  Builds the specified evaluation metrics.
+    7.  Creates and runs a Vertex AI `EvalTask`.
+    8.  Prints and logs the results.
+    9.  Shuts down OpenTelemetry to ensure all traces are exported.
+
+    Args:
+        config_path: The file path to the evaluation's YAML configuration file.
+        experiment_run_name: An optional name for the Vertex AI Experiment run.
+            If not provided, a name is generated automatically.
+
+    Returns:
+        The `EvalResult` object from the completed `EvalTask`, containing
+        detailed metrics and results.
+
+    Raises:
+        EnvironmentError: If required environment variables are not set.
+        FileNotFoundError: If the specified config or dataset file cannot be found.
+        ValueError: If the configuration is invalid.
+    """
     print(f"[DEBUG] run_evaluation called with experiment_run_name: {experiment_run_name}")
     eval_run_id = str(uuid.uuid4())
     set_log_context(eval_run_id=eval_run_id, user_id="agent-eval-framework")
