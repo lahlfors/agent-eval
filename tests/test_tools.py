@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
+"""Unit tests for the tools of the Personalized Shopping Agent."""
 
+import os
 import dotenv
 import pytest
 from google.adk.evaluation.agent_evaluator import AgentEvaluator
@@ -23,12 +24,24 @@ pytest_plugins = ("pytest_asyncio",)
 
 @pytest.fixture(scope="session", autouse=True)
 def load_env():
+    """Loads environment variables from a .env file.
+
+    This is a session-scoped autouse fixture, so it runs once before any
+    tests in this file and ensures that the environment is configured.
+    """
     dotenv.load_dotenv()
 
 
 @pytest.mark.asyncio
 async def test_tools():
-    """Test the agent's basic ability on a few examples."""
+    """Runs the ADK's built-in evaluator to test the agent's tools.
+
+    This test uses the `AgentEvaluator` from the ADK to run a series of
+    pre-defined test cases against the `personalized_shopping` agent. The
+    test cases are defined in the `tests/tools` directory and are designed
+    to validate the basic functionality of the agent's tools (`search` and
+    `click`).
+    """
     await AgentEvaluator.evaluate(
         "personalized_shopping",
         os.path.join(os.path.dirname(__file__), "tools"),

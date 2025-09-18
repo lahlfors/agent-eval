@@ -1,4 +1,6 @@
-# agent-eval-framework/config/adk_eval_config.yaml
+experiment_name: "personalized-shopping-adk-eval"
+run_name_prefix: "eval-run-38" # Increment for a clean run
+
 agent_adapter_class: "agent_eval_framework.adapters.adk_adapter.ADKAgentAdapter"
 
 agent_config:
@@ -10,20 +12,17 @@ dataset_path: "data/simple.test.jsonl"
 column_mapping:
   query: "prompt"
   reference_answer: "reference"
+  trajectory: "reference_trajectory" # Ground truth tool calls
 
 metrics:
-  - name: "exact_match"
-    type: "computation"
-  - name: "bleu"
-    type: "computation"
-  - name: "rouge_l_sum"
-    type: "computation"
-  # Example LLM-based metric from Vertex AI
-  # - name: "fluency"
-  #   type: "pointwise"
-  # Example custom metric (requires function in python path)
-  # - name: "my_tool_use_metric"
-  #   type: "custom_function"
-  #   custom_function_path: "my_metrics.tool_check.calculate_tool_accuracy"
+  # Agent Trajectory Metrics (as strings)
+  - "trajectory_exact_match"
+  # - "trajectory_in_order_match"
+  # - "trajectory_any_order_match"
+  # - "trajectory_precision"
+  # - "trajectory_recall"
 
-experiment_name: "personalized-shopping-adk-eval"
+  # Standard Computation Metrics for Final Response
+  - "exact_match"
+  - "bleu"
+  - "rouge_l_sum"

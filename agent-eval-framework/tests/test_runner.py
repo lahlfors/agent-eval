@@ -1,5 +1,18 @@
 # Copyright 2025 Google LLC
-# ... (license headers) ...
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit tests for the agent evaluation runner."""
 
 import pytest
 import os
@@ -17,6 +30,11 @@ print(f"Adjusted sys.path for test: {sys.path}")
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_env():
+    """Loads environment variables from the .env file at the project root.
+
+    This is a session-scoped autouse fixture, so it runs once before any
+    tests in this file and ensures that the environment is configured.
+    """
     dotenv_path = PROJECT_ROOT / ".env"
     if dotenv_path.exists():
         print(f"Loading environment variables from: {dotenv_path}")
@@ -25,8 +43,19 @@ def setup_env():
         print(f"Warning: .env file not found at {dotenv_path}")
 
 def test_run_evaluation(mocker):
+    """Tests the `run_evaluation` function with mocked external dependencies.
+
+    This test verifies that the `run_evaluation` function can be executed
+    without making actual calls to Google Cloud services or loading large
+    datasets. It mocks the Vertex AI SDK, GCS client, and data loading
+    functions to ensure the core orchestration logic works as expected.
+
+    Args:
+        mocker: The pytest-mock fixture for mocking objects.
+    """
     # Mock GCP calls
     mocker.patch('vertexai.init')
+    mocker.patch('google.cloud.aiplatform.init')
     mock_eval_result = mocker.Mock()
     mock_eval_result.summary_metrics = {"some_metric": 1.0}
     mock_eval_result.metrics_table = pd.DataFrame() # Mock metrics_table as an empty DataFrame

@@ -1,5 +1,16 @@
 # Copyright 2025 Google LLC
-# ... (license headers) ...
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Provides the `click` tool for the Personalized Shopping Agent."""
 
@@ -25,7 +36,21 @@ except ImportError:
     log = logging.getLogger(__name__)
 
 async def click(button_name: str, tool_context: ToolContext) -> str:
-    """Simulates clicking a button in the web environment."""
+    """Simulates clicking a button in the web shopping environment.
+
+    This tool takes the name of a button visible on the current page and
+    executes a "click" action in the simulation. It then returns the new
+    observation (the text content of the resulting page). It also saves
+    the full HTML of the new page as a tool artifact for debugging.
+
+    Args:
+        button_name: The exact text of the button to be clicked.
+        tool_context: The context object provided by the ADK, used for
+            saving artifacts.
+
+    Returns:
+        A string representing the new page's observation text.
+    """
     webshop_env = get_webshop_env()
     status = {"reward": None, "done": False}
     action_string = f"click[{button_name}]"
@@ -38,7 +63,6 @@ async def click(button_name: str, tool_context: ToolContext) -> str:
         ob = ob[index:]
 
     log.info("Click complete", extra={"status": status})
-    # print(f"observation: {ob}") # Optional: can be very long
 
     if button_name == "Back to Search":
         webshop_env.server.assigned_instruction_text = "Back to Search"

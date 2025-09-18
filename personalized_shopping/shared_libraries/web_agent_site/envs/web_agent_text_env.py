@@ -52,6 +52,13 @@ from personalized_shopping.shared_libraries.web_agent_site.utils import (
 app = Flask(__name__)
 
 
+@app.route("/", methods=["GET", "POST"])
+@app.route("/<session_id>", methods=["GET", "POST"])
+def index(session_id=None):
+    """Dummy route to allow url_for('index') to work."""
+    pass
+
+
 class WebAgentTextEnv(gym.Env):
     """Gym environment for Text mode of WebShop environment"""
 
