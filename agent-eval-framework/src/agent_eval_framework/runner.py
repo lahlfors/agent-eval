@@ -1,4 +1,4 @@
-# Copyright 2025 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ from . import otel_config
 from IPython.display import display
 
 log = get_logger(__name__)
+tracer = trace.get_tracer(__name__)
 
 def load_class(import_str: str) -> type:
     """Dynamically loads a class from a fully qualified string path.
@@ -145,12 +146,14 @@ def _build_metrics(metrics_config: List[Union[str, Dict[str, Any]]]) -> List[Any
                     metric=metric_name,
                     metric_prompt_template=metric_prompt_template,
                 ))
+                log.info(f"Appended PointwiseMetric: {metric_name}")
             elif metric_type == "custom_function":
                 custom_function = load_class(metric_spec["custom_function_path"])
                 metrics.append(CustomMetric(
                     name=metric_name,
                     metric_function=custom_function
                 ))
+                log.info(f"Appended CustomMetric: {metric_name}")
             else:
                  raise ValueError(f"Unsupported metric configuration for: {metric_name} with type: {metric_type}")
         else:
@@ -178,12 +181,13 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
 
     Returns:
         The `EvalResult` object from the completed `EvalTask`, containing
-        detailed metrics and results.
+        detailed metrics and results, or None if an error occurred.
 
     Raises:
         EnvironmentError: If required environment variables are not set.
         FileNotFoundError: If the specified config or dataset file cannot be found.
         ValueError: If the configuration is invalid.
+        Exception: For any other errors during the evaluation process.
     """
     print(f"[DEBUG] run_evaluation called with experiment_run_name: {experiment_run_name}")
     eval_run_id = str(uuid.uuid4())
@@ -192,7 +196,8 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
 
     eval_result = None  # Initialize eval_result
     try:
-        project_root = pathlib.Path(__file__).resolve().parent.parent.parent
+        # Correct project_root to agent-eval-framework directory
+        project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
         dotenv_path = project_root / ".env"
         if dotenv_path.exists():
             log.debug(f"Loading environment variables from: {dotenv_path}")
@@ -203,50 +208,45 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
         location = os.getenv("GOOGLE_CLOUD_LOCATION")
         if not project_id or not location or project_id == "your-project-id-here":
-            raise EnvironmentError("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set in the .env file at the project root.")
+            raise EnvironmentError("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set. Check .env file or shell environment.")
 
-        with open(config_path, "r") as f:
+        config_abs_path = project_root / config_path
+        if not config_abs_path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_abs_path}")
+
+        with open(config_abs_path, "r") as f:
             config = yaml.safe_load(f)
         log.debug("Configuration loaded", extra={"config": config})
 
-        # --- NEW: Initialize Vertex AI SDK and AI Platform for Experiments ---
+        # --- Initialize Vertex AI SDK and AI Platform for Experiments ---
         experiment_name = config.get("experiment_name", "default-agent-evals")
         vertexai.init(project=project_id, location=location)
         aiplatform.init(project=project_id, location=location, experiment=experiment_name)
         log.info(f"Vertex AI initialized for project: {project_id}, location: {location}, experiment: {experiment_name}")
         # --- END NEW ---
 
-
         adapter_class = load_class(config["agent_adapter_class"])
         adapter = adapter_class(**config.get("agent_config", {}))
-
-    print("\n--- Evaluation Results ---")
-    # print("GCS Output Directory for this run:", eval_result.gcs_output_dir)
-    print("\nSummary Metrics:")
-    print(eval_result.summary_metrics)
-
 
         dataset_path = config["dataset_path"]
         local_dataset_path = None
         if dataset_path.startswith("gs://"):
             local_dataset_path = _download_gcs_file(dataset_path)
         else:
-            # Adjust path to be relative to the project root
+            # Construct path relative to the project_root (agent-eval-framework)
             possible_path = project_root / dataset_path
-            if os.path.exists(possible_path):
+            if possible_path.exists():
                  local_dataset_path = possible_path
-            elif os.path.exists(dataset_path):
-                 local_dataset_path = dataset_path
             else:
-                 log.error(f"Dataset file not found: {possible_path} or {dataset_path}")
-                 raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
+                 log.error(f"Dataset file not found at: {possible_path}")
+                 raise FileNotFoundError(f"Dataset file not found: {possible_path}")
 
         with open(local_dataset_path, "r") as f:
             golden_dataset = [json.loads(line) for line in f]
         if str(dataset_path).startswith("gs://") and local_dataset_path:
              os.remove(local_dataset_path)
         df_dataset = pd.DataFrame(golden_dataset)
-        log.info(f"Loaded dataset with {len(df_dataset)} records.")
+        log.info(f"Loaded dataset with {len(df_dataset)} records from {local_dataset_path}")
 
         column_mapping = config.get("column_mapping", {})
         df_dataset.rename(columns=column_mapping, inplace=True)
@@ -259,7 +259,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         if target_col not in df_dataset.columns:
              log.warning(f"'{target_col}' column not found in dataset after mapping. Some metrics may not work.")
 
-        # NEW: Handle NaN values in columns used for metric API calls
+        # Handle NaN values in columns used for metric API calls
         cols_to_clean = ["prompt", "reference", "response", "predicted_trajectory", "reference_trajectory"]
         for col in cols_to_clean:
             if col in df_dataset.columns:
@@ -275,6 +275,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
                                 json.loads(traj) # Check if valid JSON
                                 return traj
                             except json.JSONDecodeError:
+                                log.warning(f"Invalid JSON in trajectory column, replacing: {traj}")
                                 return json.dumps({"tool_calls": []}) # Recover from bad string
                         elif isinstance(traj, dict) and "tool_calls" in traj:
                              return json.dumps(traj)
@@ -312,7 +313,6 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
 
         print("\n--- Evaluation Results ---")
         print(f"Vertex AI Experiment: {experiment_name}, Run: {run_name}")
-        # print("GCS Output Directory for this run:", eval_result.gcs_output_dir) # Removed
         print("\nSummary Metrics:")
         print(summary_metrics)
 
@@ -329,11 +329,16 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
                 "summary_metrics": summary_metrics,
                 "metrics_table": eval_result.metrics_table.to_dict(orient='records'),
                 "dataset_path": config.get("dataset_path"),
-                # "gcs_output_dir": eval_result.gcs_output_dir, # Removed
             }
             log.info("Evaluation results payload", extra={"payload": eval_payload})
         except Exception as e:
             log.error(f"Error logging eval results: {e}", exc_info=True)
+
+    except Exception as e:
+        log.error(f"An error occurred during run_evaluation: {e}", exc_info=True)
+        print(f"ERROR: An error occurred during run_evaluation: {e}")
+        # Re-raise the exception to potentially fail the pytest test
+        raise
     finally:
         tracer_provider = trace.get_tracer_provider()
         if hasattr(tracer_provider, "shutdown"):

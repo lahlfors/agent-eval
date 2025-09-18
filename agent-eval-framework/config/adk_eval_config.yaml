@@ -7,7 +7,7 @@ agent_config:
   agent_module: "personalized_shopping.agent"
   agent_name: "root_agent"
 
-dataset_path: "data/simple.test.jsonl"
+dataset_path: "agent-eval-framework/data/simple.test.jsonl"
 
 column_mapping:
   query: "prompt"
