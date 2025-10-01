@@ -134,6 +134,29 @@ The key features of the personalized-shopping agent include:
     gcloud auth application-default login
     ```
 
+## Observability Configuration (OpenTelemetry)
+
+The framework is integrated with OpenTelemetry to provide detailed traces and structured logs, which are essential for debugging, performance monitoring, and cost analysis. Configuration is managed via standard environment variables.
+
+### Trace Exporting
+
+Traces provide a detailed view of the execution flow of your agent, including latency for each step. You can export traces to a custom backend that supports the OpenTelemetry Protocol (OTLP), such as a self-hosted Jaeger instance or a commercial observability platform.
+
+-   **`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`**: The OTLP endpoint URL for your trace backend. If this is set, the framework will send traces to this URL.
+-   **`OTEL_EXPORTER_OTLP_TRACES_HEADERS`**: Optional comma-separated key-value pairs to be sent as headers with trace exports (e.g., `Authorization=Bearer my-secret-token`).
+-   **`USE_GCP_TRACE`**: Set to `true` to export traces to Google Cloud Trace. This is used if `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` is not set.
+
+If neither of the above is configured, traces will be printed to the console.
+
+### Structured Logging
+
+Structured JSON logs provide rich, queryable data. These can be exported to a log analysis platform like OpenObserve or any other OTLP-compatible log receiver.
+
+-   **`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT`**: The OTLP endpoint URL for your logging backend (e.g., `http://your-openobserve-instance:5081/v1/logs`).
+-   **`OTEL_EXPORTER_OTLP_LOGS_HEADERS`**: Optional comma-separated key-value pairs for log exports, typically used for authentication (e.g., `Authorization=Basic dXNlcjpwYXNzd29yZA==`).
+
+These variables should be added to your `.env` file alongside the existing ones.
+
 ## Running the Agent
 
 > **Note**: The first run may take some time as the system loads approximately 50,000 product entries into the web environment for the search engine.

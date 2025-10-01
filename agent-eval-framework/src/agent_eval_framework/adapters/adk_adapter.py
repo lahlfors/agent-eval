@@ -74,20 +74,23 @@ class ADKAgentAdapter:
             try:
                 # Check if the loaded "class" is actually an instance
                 if not isinstance(self.agent_class, type):
-                    # It's already an instance, just use it
-                    agent = self.agent_class
+                    agent = self.agent_class  # It's already an instance
                 else:
-                    # It's a class, instantiate it
-                    agent = self.agent_class(**self.agent_config)
+                    agent = self.agent_class(**self.agent_config)  # It's a class, instantiate it
             except Exception as e:
                 log.error(f"Error instantiating agent {self.agent_name}: {e}", exc_info=True)
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, f"Agent instantiation failed: {e}"))
                 raise
 
+            # Set initial GenAI attributes
+            span.set_attribute("gen_ai.system", "VertexAI")
+            if hasattr(agent, 'model') and agent.model:
+                span.set_attribute("gen_ai.request.model", agent.model)
+            span.set_attribute("gen_ai.prompt", query)
+
             session_service = InMemorySessionService()
             await session_service.create_session(app_name=self.app_name, user_id=self.user_id, session_id=session_id)
-
             runner = Runner(agent=agent, app_name=self.app_name, session_service=session_service)
             content = genai_types.Content(role="user", parts=[genai_types.Part(text=query)])
             events = []
@@ -96,6 +99,12 @@ class ADKAgentAdapter:
                 try:
                     async for event in runner.run_async(user_id=self.user_id, session_id=session_id, new_message=content):
                         events.append(event)
+                        # The usage metadata is typically in the final event from the model
+                        if hasattr(event, "usage_metadata") and event.usage_metadata:
+                            usage_metadata = event.usage_metadata
+                            runner_span.set_attribute("gen_ai.usage.input_tokens", usage_metadata.prompt_token_count)
+                            runner_span.set_attribute("gen_ai.usage.output_tokens", usage_metadata.candidates_token_count)
+                            runner_span.set_attribute("gen_ai.usage.total_tokens", usage_metadata.total_token_count)
                 except Exception as e:
                     log.error(f"Error during runner.run_async: {e}", exc_info=True)
                     runner_span.record_exception(e)
@@ -103,7 +112,10 @@ class ADKAgentAdapter:
                     raise
 
             parsed_output = self._parse_adk_output_to_dictionary(events)
-            span.set_attribute("output.response_length", len(parsed_output.get("response", "")))
+            response_text = parsed_output.get("response", "")
+            span.set_attribute("output.response_length", len(response_text))
+            span.set_attribute("gen_ai.response.text", response_text)
+
             return parsed_output
 
     def __call__(self, prompt: str) -> Dict[str, Any]:
