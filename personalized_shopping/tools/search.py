@@ -68,9 +68,7 @@ async def search(keywords: str, tool_context: ToolContext) -> str:
 
     try:
         await tool_context.save_artifact(
-            content=types.ContentDict(
-                parts=[{"text": webshop_env.state["html"]}]
-            ),
+            blob=webshop_env.state["html"].encode("utf-8"),
             title=f"Search Results for {keywords}",
             mime_type="text/html",
         )
