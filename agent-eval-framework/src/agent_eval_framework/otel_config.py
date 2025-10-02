@@ -16,6 +16,7 @@
 
 import os
 import sys
+from opentelemetry._logs import set_logger_provider
 import logging
 import google.auth
 from opentelemetry import trace
@@ -26,11 +27,11 @@ from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
 # OTel Logging
-from opentelemetry.sdk.logs import LoggerProvider, LoggingHandler
-from opentelemetry.sdk.logs.export import BatchLogRecordProcessor
-from opentelemetry.exporter.otlp.proto.http.log_exporter import OTLPLogExporter
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
-from python_json_logger import jsonlogger
+from pythonjsonlogger import jsonlogger
 
 def setup_logging(log_provider: LoggerProvider):
     """Configures the OTLP Log Exporter and JSON formatting."""
@@ -84,7 +85,7 @@ def setup_opentelemetry():
 
     # Set up and register the logger provider
     log_provider = LoggerProvider(resource=resource)
-    logging.setLoggerProvider(log_provider)
+    set_logger_provider(log_provider)
     setup_logging(log_provider)
 
     # Set up and register the tracer provider

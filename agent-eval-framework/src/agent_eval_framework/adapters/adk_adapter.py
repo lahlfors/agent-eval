@@ -129,13 +129,13 @@ class ADKAgentAdapter:
                 log.debug(f"ADKAgentAdapter called with prompt: {prompt}")
                 result = asyncio.run(self._run_agent_async(prompt))
 
+                # The trajectory is expected to be a list of tool calls.
                 predicted_trajectory_list = result.get("predicted_trajectory", [])
-                wrapped_trajectory = {"tool_calls": predicted_trajectory_list}
 
                 # Format for evaluation
                 return {
                     "actual_response": result.get("response"),
-                    "predicted_trajectory": json.dumps(wrapped_trajectory)
+                    "predicted_trajectory": predicted_trajectory_list
                 }
             except Exception as e:
                 log.error(f"Error during ADK agent execution: {e}", exc_info=True)
@@ -143,7 +143,7 @@ class ADKAgentAdapter:
                 span.set_status(Status(StatusCode.ERROR, f"ADKAgentAdapter.call failed: {e}"))
                 return {
                     "actual_response": "AGENT_EXECUTION_ERROR",
-                    "predicted_trajectory": json.dumps({"tool_calls": []}),
+                    "predicted_trajectory": [],
                     "error": str(e)
                 }
 
