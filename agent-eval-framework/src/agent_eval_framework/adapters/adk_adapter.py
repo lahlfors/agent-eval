@@ -166,7 +166,7 @@ class ADKAgentAdapter(BaseAgentAdapter): # Inherit from BaseAgentAdapter
             span.set_attribute("agent.name", self.agent_name)
             span.set_attribute("input.prompt", prompt)
             # Add GenAI attributes
-            span.set_attribute("gen_ai.system", "VertexAI")
+            span.set_attribute("gen_ai.system", "vertex_ai")
             if self.agent and hasattr(self.agent, "model") and hasattr(self.agent.model, "model_name"):
                 span.set_attribute("gen_ai.request.model", self.agent.model.model_name)
             span.set_attribute("gen_ai.prompt", prompt)

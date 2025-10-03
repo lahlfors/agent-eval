@@ -51,6 +51,9 @@ from .utils.logger import get_logger, set_log_context
 from . import otel_config
 from IPython.display import display
 
+otel_config.setup_opentelemetry()
+
+
 log = get_logger(__name__)
 tracer = trace.get_tracer(__name__)
 

@@ -20,7 +20,7 @@ def pytest_configure(config):
     else:
         print(f"conftest.py: .env file not found at {dotenv_path}")
 
-    from agent_eval_framework import otel_config
-    print("conftest.py: Setting up OpenTelemetry...")
-    otel_config.setup_opentelemetry()
-    print("conftest.py: OpenTelemetry setup complete.")
+    #   from agent_eval_framework import otel_config
+    #print("conftest.py: Setting up OpenTelemetry...")
+    #otel_config.setup_opentelemetry()
+    #print("conftest.py: OpenTelemetry setup complete.")
