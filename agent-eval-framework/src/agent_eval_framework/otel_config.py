@@ -57,9 +57,11 @@ def setup_logging(log_provider: LoggerProvider):
         logging.getLogger().addHandler(console_handler)
     sys.stdout.write("otel_config.py: JSON logging configured.\n")
 
+from openinference.instrumentation.vertexai import VertexAIInstrumentor
+
 def setup_opentelemetry():
     """Sets up OpenTelemetry for the application."""
-    project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+    project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "laah-genai")
     resource_attributes = {SERVICE_NAME: "agent-eval-framework"}
     if project_id:
         resource_attributes["gcp.project_id"] = project_id
@@ -73,6 +75,10 @@ def setup_opentelemetry():
     trace_provider = TracerProvider(resource=resource)
     trace.set_tracer_provider(trace_provider)
     setup_tracing(trace_provider)
+
+    # Instrument for Vertex AI
+    VertexAIInstrumentor().instrument()
+
     sys.stdout.flush()
 
 def setup_tracing(trace_provider: TracerProvider):
@@ -80,30 +86,46 @@ def setup_tracing(trace_provider: TracerProvider):
     otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
 
     if otlp_endpoint:
-        headers = parse_headers(os.environ.get("OTEL_EXPORTER_OTLP_TRACES_HEADERS", ""))
-
-        # If the endpoint is for Google Cloud, we need to add auth headers.
+        exporter = None
+        # If the endpoint is for Google Cloud, we need to configure auth.
         if "googleapis.com" in otlp_endpoint:
             try:
-                sys.stdout.write(f"otel_config.py: Google Cloud endpoint detected. Adding authentication headers.\n")
-                credentials, project_id = google.auth.default()
-                request = google.auth.transport.requests.Request()
-                credentials.refresh(request)
-                auth_header = f"Bearer {credentials.token}"
-                headers["Authorization"] = auth_header
-            except Exception as e:
-                sys.stdout.write(f"otel_config.py: Failed to get Google Cloud credentials for OTLP HTTP Exporter. Error: {e}\n")
+                sys.stdout.write(f"otel_config.py: Google Cloud endpoint detected. Configuring AuthorizedSession.\n")
 
-        sys.stdout.write(f"otel_config.py: Configuring OTLP HTTP exporter for endpoint: {otlp_endpoint}\n")
-        exporter = OTLPSpanExporter(
-            endpoint=otlp_endpoint,
-            headers=headers if headers else None
-        )
+                quota_project = os.getenv("GOOGLE_CLOUD_PROJECT", "laah-genai")
+                credentials, project_id = google.auth.default(
+                    quota_project_id=quota_project,
+                    scopes=["https://www.googleapis.com/auth/cloud-platform", "https://www.googleapis.com/auth/trace.append"]
+                )
+                sys.stdout.write(f"otel_config.py: Got credentials for quota project: {quota_project}\n")
+
+                # Use AuthorizedSession to handle auth and project headers
+                authed_session = google.auth.transport.requests.AuthorizedSession(credentials)
+
+                sys.stdout.write(f"otel_config.py: Configuring OTLP HTTP exporter for endpoint: {otlp_endpoint}\n")
+                exporter = OTLPSpanExporter(
+                    endpoint=otlp_endpoint,
+                    session=authed_session  # Pass the session here
+                )
+            except Exception as e:
+                sys.stderr.write(f"otel_config.py: Failed to configure Google Cloud OTLP HTTP Exporter. Error: {e}\n")
+                # Fallback to console exporter
+                sys.stdout.write("otel_config.py: Falling back to ConsoleSpanExporter.\n")
+                exporter = ConsoleSpanExporter()
+        else:
+            # For non-Google endpoints, just use headers from env
+            headers = parse_headers(os.environ.get("OTEL_EXPORTER_OTLP_TRACES_HEADERS", ""))
+            sys.stdout.write(f"otel_config.py: Configuring OTLP HTTP exporter for non-Google endpoint: {otlp_endpoint}\n")
+            exporter = OTLPSpanExporter(
+                endpoint=otlp_endpoint,
+                headers=headers if headers else None
+            )
     else:
         sys.stdout.write("otel_config.py: No OTLP endpoint configured. Using ConsoleSpanExporter.\n")
         exporter = ConsoleSpanExporter()
 
-    trace_provider.add_span_processor(BatchSpanProcessor(exporter))
+    if exporter:
+        trace_provider.add_span_processor(BatchSpanProcessor(exporter))
 
 def parse_headers(header_string: str) -> dict:
     """Parses a comma-separated string of key=value pairs into a dictionary."""

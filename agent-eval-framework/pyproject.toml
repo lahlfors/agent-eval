@@ -15,6 +15,8 @@ pandas = "^2.2.2"
 google-cloud-aiplatform = { extras = ["evaluation"], version = ">=1.111.0" }
 google-cloud-storage = "^2.18.0"
 ipython = "^8.26.0"
+openinference-instrumentation-vertexai = { version = "0.1.11", python = ">=3.11,<3.14" }
+openinference-instrumentation = { version = "0.1.38", python = ">=3.11,<3.14" }
 
 [build-system]
 requires = ["poetry-core"]

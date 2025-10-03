@@ -54,19 +54,20 @@ def test_run_evaluation(mocker):
         mocker: The pytest-mock fixture for mocking objects.
     """
     # Mock GCP calls
-    mocker.patch('vertexai.init')
-    mocker.patch('google.cloud.aiplatform.init')
+    mocker.patch('agent_eval_framework.runner.vertexai.init')
+    mocker.patch('agent_eval_framework.runner.aiplatform.init')
+    mocker.patch('personalized_shopping.shared_libraries.web_agent_site.engine.engine.init_search_engine')
     mock_eval_result = mocker.Mock()
     mock_eval_result.summary_metrics = {"some_metric": 1.0}
-    mock_eval_result.metrics_table = pd.DataFrame() # Mock metrics_table as an empty DataFrame
+    mock_eval_result.metrics_table = pd.DataFrame()
 
-    mock_eval_task_class = mocker.patch('vertexai.evaluation.EvalTask')
+    mock_eval_task_class = mocker.patch('agent_eval_framework.runner.EvalTask')
     mock_eval_task_instance = mock_eval_task_class.return_value
     mock_eval_task_instance.evaluate.return_value = mock_eval_result
 
     # Mock data loading
     mocker.patch(
-        'personalized_shopping.shared_libraries.web_agent_site.envs.web_agent_text_env.load_products',
+        'personalized_shopping.shared_libraries.web_agent_site.engine.engine.load_products',
         return_value=([], {}, {}, defaultdict(set))
     )
     from agent_eval_framework.runner import run_evaluation

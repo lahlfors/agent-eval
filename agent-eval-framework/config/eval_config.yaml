@@ -2,7 +2,7 @@ agent_adapter_class: "agent_eval_framework.adapters.personalized_shopping_adapte
 agent_config:
   agent_module_path: "personalized_shopping.agent"
 
-dataset_path: "data/simple.test.jsonl" # Relative to agent-eval-framework root
+dataset_path: "agent-eval-framework/data/simple.test.jsonl" # Relative to agent-eval-framework root
 
 column_mapping:
   query: "prompt"  # Maps 'query' from JSONL to 'prompt' in DataFrame

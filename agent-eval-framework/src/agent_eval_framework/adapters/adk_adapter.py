@@ -111,6 +111,7 @@ class ADKAgentAdapter(BaseAgentAdapter): # Inherit from BaseAgentAdapter
         final_response = ""
         tool_calls = []
         full_conversation = []
+        usage_metadata = None
 
         try:
             # --- Create the session in the session service ---
@@ -123,6 +124,8 @@ class ADKAgentAdapter(BaseAgentAdapter): # Inherit from BaseAgentAdapter
 
             async for event in self.runner.run_async(user_id=self.user_id, session_id=session_id, new_message=content):
                 full_conversation.append(event.model_dump_json())
+                if hasattr(event, "usage_metadata") and event.usage_metadata:
+                    usage_metadata = event.usage_metadata
                 if event.content:
                     text_content = " ".join(part.text for part in event.content.parts if part.text)
                     if event.author == self.agent.name: # Agent's response
@@ -144,11 +147,14 @@ class ADKAgentAdapter(BaseAgentAdapter): # Inherit from BaseAgentAdapter
                 "error": str(e),
             }
 
-        return {
+        result = {
             "response": final_response,
             "predicted_trajectory": tool_calls,
             "full_conversation": json.dumps(full_conversation),
         }
+        if usage_metadata:
+            result["usage_metadata"] = usage_metadata
+        return result
 
     def get_response(self, prompt: str) -> Dict[str, Any]:
         """Gets the agent's response to a prompt."""
@@ -159,17 +165,32 @@ class ADKAgentAdapter(BaseAgentAdapter): # Inherit from BaseAgentAdapter
         with tracer.start_as_current_span("ADKAgentAdapter.get_response") as span:
             span.set_attribute("agent.name", self.agent_name)
             span.set_attribute("input.prompt", prompt)
+            # Add GenAI attributes
+            span.set_attribute("gen_ai.system", "VertexAI")
+            if self.agent and hasattr(self.agent, "model") and hasattr(self.agent.model, "model_name"):
+                span.set_attribute("gen_ai.request.model", self.agent.model.model_name)
+            span.set_attribute("gen_ai.prompt", prompt)
             try:
                 result = asyncio.run(self._run_agent_async(prompt))
                 if result.get("error"):
                     span.set_attribute("error", True)
                     span.set_attribute("error.message", result["error"])
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, str(result["error"])))
+                else:
+                    span.set_attribute("gen_ai.response.text", result.get("response"))
+                    usage_metadata = result.get("usage_metadata")
+                    if usage_metadata:
+                        span.set_attribute("gen_ai.usage.input_tokens", usage_metadata.prompt_token_count)
+                        span.set_attribute("gen_ai.usage.output_tokens", usage_metadata.candidates_token_count)
+                        span.set_attribute("gen_ai.usage.total_tokens", usage_metadata.total_token_count)
+                    span.set_status(trace.Status(trace.StatusCode.OK))
                 return result
             except Exception as e:
                 log.error(f"Error in ADKAgentAdapter.get_response: {e}", exc_info=True)
                 span.record_exception(e)
                 span.set_attribute("error", True)
                 span.set_attribute("error.message", str(e))
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
                 return {
                     "response": f"Adapter call failed: {e}",
                     "predicted_trajectory": [],

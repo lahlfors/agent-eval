@@ -60,14 +60,15 @@ def index(session_id=None):
     # This might need to render your initial search page
     return render_template('search_page.html', session_id=session_id)
 
-# --- Engine Initialization ---
-if not hasattr(app, "engine"):
-    # Simplified engine setup for Flask routes
-    app.engine = {}
-    app.engine["all_products"], app.engine["product_item_dict"], _, _ = load_products(
-        filepath=DEFAULT_FILE_PATH
-    )
-    app.engine["search_engine"] = init_search_engine()
+def init_app_engine():
+    """Initializes the Flask app engine if it hasn't been initialized yet."""
+    if not hasattr(app, "engine"):
+        # Simplified engine setup for Flask routes
+        app.engine = {}
+        app.engine["all_products"], app.engine["product_item_dict"], _, _ = load_products(
+            filepath=DEFAULT_FILE_PATH
+        )
+        app.engine["search_engine"] = init_search_engine()
 
 
 @app.route("/search_results", methods=["GET", "POST"])
@@ -169,6 +170,7 @@ class WebAgentTextEnv(gym.Env):
         show_attrs
         """
         super(WebAgentTextEnv, self).__init__()
+        init_app_engine()
         self.observation_mode = observation_mode
         self.kwargs = kwargs
 
