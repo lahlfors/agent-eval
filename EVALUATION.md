@@ -102,6 +102,8 @@ The `config.yaml` file tells the evaluation framework where to find your agent a
         type: 'custom_function'
         custom_function_path: 'agent_eval_framework.metrics.trajectory_metrics.trajectory_exact_match'
 
+For a detailed guide on creating your own custom metrics, see the [`CUSTOM_METRICS.md`](agent-eval-framework/CUSTOM_METRICS.md) documentation.
+
     # 6. (Optional) Name for the Vertex AI Experiment
     experiment_name: 'my-new-agent-evaluation'
     ```
