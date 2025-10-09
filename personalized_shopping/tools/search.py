@@ -14,14 +14,12 @@
 
 """Provides the `search` tool for the Personalized Shopping Agent."""
 
-from google.adk.tools import ToolContext
-from google.genai import types
-
-# Absolute import
-from personalized_shopping.shared_libraries.init_env import get_webshop_env
-import sys
 import os
 import pathlib
+import sys
+
+from google.adk.tools import ToolContext
+from vertexai.generative_models import Part
 
 # Add agent-eval-framework to sys.path to find logger
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -34,6 +32,10 @@ try:
 except ImportError:
     import logging
     log = logging.getLogger(__name__)
+
+# Absolute import from within the personalized_shopping package
+from personalized_shopping.shared_libraries.init_env import get_webshop_env
+
 
 async def search(keywords: str, tool_context: ToolContext) -> str:
     """Performs a keyword search in the web shopping environment.
@@ -67,12 +69,16 @@ async def search(keywords: str, tool_context: ToolContext) -> str:
     log.info("Search complete", extra={"status": status})
 
     try:
+        # Create the artifact object from the HTML data and its MIME type
+        html_artifact = Part.from_data(
+            data=webshop_env.state["html"].encode("utf-8"),
+            mime_type="text/html"
+        )
+
+        # Call the save_artifact method with the correct arguments
         await tool_context.save_artifact(
-            content=types.ContentDict(
-                parts=[{"text": webshop_env.state["html"]}]
-            ),
-            title=f"Search Results for {keywords}",
-            mime_type="text/html",
+            filename=f"Search Results for {keywords}.html",
+            artifact=html_artifact
         )
     except Exception as e:
         log.warning(f"Error saving search artifact: {e}", exc_info=True)

@@ -63,12 +63,18 @@
           </div>
           {% if page > 1 %}
             <div class="col-sm-2">
-              <form method="post" action="{{url_for('search_results', session_id=session_id, keywords=keywords, page=page - 1)}}">
+              <form method="get" action="{{url_for('search_results')}}">
+                <input type="hidden" name="session_id" value="{{ session_id }}">
+                <input type="hidden" name="keywords" value="{{ keywords | join(' ') if keywords is iterable else keywords }}">
+                <input type="hidden" name="page" value="{{ page - 1 }}">
                 <button type="submit" class="btn btn-primary">&lt; Prev</button>
               </form>
             </div>
             <div class="col-sm-2">
-              <form method="post" action="{{url_for('search_results', session_id=session_id, keywords=keywords, page=page + 1)}}">
+              <form method="get" action="{{url_for('search_results')}}">
+                <input type="hidden" name="session_id" value="{{ session_id }}">
+                <input type="hidden" name="keywords" value="{{ keywords | join(' ') if keywords is iterable else keywords }}">
+                <input type="hidden" name="page" value="{{ page + 1 }}">
                 <button type="submit" class="btn btn-primary">Next &gt;</button>
               </form>
             </div>
@@ -76,7 +82,10 @@
             <div class="col-sm-2">
             </div>
             <div class="col-sm-2">
-              <form method="post" action="{{url_for('search_results', session_id=session_id, keywords=keywords, page=page + 1)}}">
+              <form method="get" action="{{url_for('search_results')}}">
+                <input type="hidden" name="session_id" value="{{ session_id }}">
+                <input type="hidden" name="keywords" value="{{ keywords | join(' ') if keywords is iterable else keywords }}">
+                <input type="hidden" name="page" value="{{ page + 1 }}">
                 <button type="submit" class="btn btn-primary">Next &gt;</button>
               </form>
             </div>

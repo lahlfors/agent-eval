@@ -32,6 +32,7 @@ from datetime import datetime
 import traceback # Import traceback
 import math
 from opentelemetry import trace
+import numpy as np # Import numpy
 
 # CORRECTED IMPORTS:
 # Import the PREVIEW EvalTask for agent evaluation
@@ -41,9 +42,17 @@ from vertexai.preview.evaluation import metrics as preview_metrics
 # Keep these for other metric types if needed
 from vertexai.evaluation import CustomMetric, PointwiseMetric, MetricPromptTemplateExamples
 
+# ADK Imports for Runner
+from google.adk.artifacts.in_memory_artifact_service import InMemoryArtifactService
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+
 from .utils.logger import get_logger, set_log_context
 from . import otel_config
 from IPython.display import display
+
+otel_config.setup_opentelemetry()
+
 
 log = get_logger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -160,6 +169,24 @@ def _build_metrics(metrics_config: List[Union[str, Dict[str, Any]]]) -> List[Any
             raise TypeError(f"Invalid metric specification type: {type(metric_spec)}")
     return metrics
 
+def parse_trajectory(traj_data: Any) -> List[Dict[str, Any]]:
+    """Ensures trajectory data is a list of dicts, parsing from JSON if necessary."""
+    if isinstance(traj_data, list):
+        return traj_data  # Already in the correct list format
+    if isinstance(traj_data, dict):
+        return traj_data.get('tool_calls', []) # Extract tool_calls if it's a dict
+    if pd.isna(traj_data) or not traj_data:
+        return []
+    if isinstance(traj_data, str):
+        try:
+            data = json.loads(traj_data)
+            return data.get('tool_calls', [])
+        except json.JSONDecodeError:
+            log.warning(f"Warning: Could not decode JSON for trajectory string: {traj_data}")
+            return []
+    log.warning(f"Warning: Trajectory data is not a list, dict, or JSON string, returning empty list: {type(traj_data)}")
+    return []
+
 def run_evaluation(config_path: str, experiment_run_name: str = None):
     """Runs the full, configuration-driven evaluation pipeline.
 
@@ -196,7 +223,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
 
     eval_result = None  # Initialize eval_result
     try:
-        # Correct project_root to agent-eval-framework directory
+        # Correct project_root to the base 'agent-eval' directory
         project_root = pathlib.Path(__file__).resolve().parent.parent.parent.parent
         dotenv_path = project_root / ".env"
         if dotenv_path.exists():
@@ -226,14 +253,24 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         # --- END NEW ---
 
         adapter_class = load_class(config["agent_adapter_class"])
-        adapter = adapter_class(**config.get("agent_config", {}))
+        agent_config = config.get("agent_config", {})
+
+        # --- ADK Runner Initialization with Artifact Service ---
+        if "adk_adapter" in config["agent_adapter_class"]:
+            agent_config["artifact_service"] = InMemoryArtifactService()
+            agent_config["session_service"] = InMemorySessionService()
+            agent_config["memory_service"] = InMemoryMemoryService()
+            log.info("Added InMemory services to ADK Agent Adapter config.")
+
+        adapter = adapter_class(**agent_config)
+        log.info(f"Agent adapter '{config['agent_adapter_class']}' initialized.")
 
         dataset_path = config["dataset_path"]
         local_dataset_path = None
         if dataset_path.startswith("gs://"):
             local_dataset_path = _download_gcs_file(dataset_path)
         else:
-            # Construct path relative to the project_root (agent-eval-framework)
+            # Construct path relative to the project_root
             possible_path = project_root / dataset_path
             if possible_path.exists():
                  local_dataset_path = possible_path
@@ -267,22 +304,17 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
                     log.warning(f"NaN values found in column '{col}', replacing with empty string for API compatibility.")
                     df_dataset[col] = df_dataset[col].fillna('')
 
-                # Ensure trajectory columns are JSON strings
-                if col in ["predicted_trajectory", "reference_trajectory"]:
-                    def sanitize_traj(traj):
-                        if isinstance(traj, str):
-                            try:
-                                json.loads(traj) # Check if valid JSON
-                                return traj
-                            except json.JSONDecodeError:
-                                log.warning(f"Invalid JSON in trajectory column, replacing: {traj}")
-                                return json.dumps({"tool_calls": []}) # Recover from bad string
-                        elif isinstance(traj, dict) and "tool_calls" in traj:
-                             return json.dumps(traj)
-                        elif isinstance(traj, list):
-                             return json.dumps({"tool_calls": traj})
-                        return json.dumps({"tool_calls": []})
-                    df_dataset[col] = df_dataset[col].apply(sanitize_traj)
+        # --- Parse trajectory columns ---
+        if 'reference_trajectory' in df_dataset.columns:
+            df_dataset['reference_trajectory'] = df_dataset['reference_trajectory'].apply(parse_trajectory)
+            log.info("Parsed 'reference_trajectory' column.")
+        else:
+            log.warning("Warning: 'reference_trajectory' column not found in dataset.")
+
+        if 'predicted_trajectory' in df_dataset.columns:
+             # This column is usually populated by the adapter, but good to ensure
+             df_dataset['predicted_trajectory'] = df_dataset['predicted_trajectory'].apply(parse_trajectory)
+             log.info("Parsed 'predicted_trajectory' column.")
 
         metrics = _build_metrics(config["metrics"])
 
@@ -309,6 +341,19 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         log.info("Evaluation complete.")
 
         summary_metrics = eval_result.summary_metrics
+        # Convert numpy types to native types for logging
+        for key, value in summary_metrics.items():
+            if isinstance(value, (np.integer, np.floating)):
+                 if math.isnan(value):
+                     summary_metrics[key] = None
+                 else:
+                     summary_metrics[key] = value.item()
+            elif isinstance(value, str) and value == 'NaN':
+                 summary_metrics[key] = None
+            elif isinstance(value, float) and math.isnan(value):
+                 summary_metrics[key] = None
+
+
         log.info(f"Summary Metrics: {summary_metrics}")
 
         print("\n--- Evaluation Results ---")
@@ -320,6 +365,9 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         display(eval_result.metrics_table)
 
         try:
+            # Prepare metrics table for JSON serialization
+            metrics_table_dict = eval_result.metrics_table.replace({np.nan: None}).to_dict(orient='records')
+
             eval_payload = {
                 "event_type": "evaluation_result",
                 "eval_run_id": eval_run_id,
@@ -327,7 +375,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
                 "experiment_name": experiment_name,
                 "run_name": run_name,
                 "summary_metrics": summary_metrics,
-                "metrics_table": eval_result.metrics_table.to_dict(orient='records'),
+                "metrics_table": metrics_table_dict,
                 "dataset_path": config.get("dataset_path"),
             }
             log.info("Evaluation results payload", extra={"payload": eval_payload})

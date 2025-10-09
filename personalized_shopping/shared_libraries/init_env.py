@@ -57,6 +57,6 @@ def get_webshop_env():
     """Returns a singleton instance of the webshop environment."""
     global _webshop_env
     if _webshop_env is None:
-        num_product_items = 50000
+        num_product_items = 1000
         _webshop_env = init_env(num_product_items)
     return _webshop_env

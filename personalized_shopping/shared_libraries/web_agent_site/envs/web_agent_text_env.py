@@ -19,7 +19,8 @@ import string
 import time
 from bs4 import BeautifulSoup
 from bs4.element import Comment
-from flask import Flask
+from flask import Flask, render_template, request
+import flask
 import gym
 from gym.envs.registration import register
 import numpy as np
@@ -56,7 +57,92 @@ app = Flask(__name__)
 @app.route("/<session_id>", methods=["GET", "POST"])
 def index(session_id=None):
     """Dummy route to allow url_for('index') to work."""
-    pass
+    # This might need to render your initial search page
+    return render_template('search_page.html', session_id=session_id)
+
+def init_app_engine():
+    """Initializes the Flask app engine if it hasn't been initialized yet."""
+    if not hasattr(app, "engine"):
+        # Simplified engine setup for Flask routes
+        app.engine = {}
+        app.engine["all_products"], app.engine["product_item_dict"], _, _ = load_products(
+            filepath=DEFAULT_FILE_PATH
+        )
+        app.engine["search_engine"] = init_search_engine()
+
+
+@app.route("/search_results", methods=["GET", "POST"])
+def search_results():
+    session_id = request.args.get("session_id")
+    keywords = request.args.get("keywords")
+    page = request.args.get("page", default=1, type=int)
+
+    if not session_id:
+        return flask.redirect(flask.url_for("index"))
+
+    # Use the engine to get search results
+    try:
+        if isinstance(keywords, str):
+            keywords = keywords.split()
+        top_n_products = get_top_n_product_from_keywords(
+            keywords,
+            app.engine["search_engine"],
+            app.engine["all_products"],
+            app.engine["product_item_dict"],
+        )
+        products = get_product_per_page(top_n_products, page)
+        total_products = len(top_n_products)
+    except Exception as e:
+        print(f"Error getting search results: {e}")
+        products = []
+        total_products = 0
+
+    instruction_text = f"Search results for '{keywords}'"  # Example instruction
+
+    return render_template(
+        "results_page.html",
+        products=products,
+        keywords=keywords,
+        page=page,
+        total=total_products,
+        session_id=session_id,
+        instruction_text=instruction_text,
+    )
+
+
+@app.route("/item_page", methods=["GET"])
+def item_page():
+    session_id = request.args.get("session_id")
+    asin = request.args.get("asin")
+    keywords = request.args.get("keywords")
+    page = request.args.get("page", default=1, type=int)
+
+    if not session_id or not asin:
+        return flask.redirect(flask.url_for("index"))
+
+    item = app.engine["product_item_dict"].get(asin)
+
+    if not item:
+        return "Item not found", 404
+
+    instruction_text = f"Details for {item.get('Title', asin)}"
+
+    return render_template(
+        "item_page.html",
+        item=item,
+        session_id=session_id,
+        keywords=keywords,
+        page=page,
+        instruction_text=instruction_text,
+        product_info=item,
+        options=item.get("options", {}),
+        show_attrs=False,
+        back_to_search=BACK_TO_SEARCH,
+        description_button="Description",
+        features_button="Features",
+        reviews_button="Reviews",
+        attributes_button="Attributes",
+    )
 
 
 class WebAgentTextEnv(gym.Env):
@@ -84,6 +170,7 @@ class WebAgentTextEnv(gym.Env):
         show_attrs
         """
         super(WebAgentTextEnv, self).__init__()
+        init_app_engine()
         self.observation_mode = observation_mode
         self.kwargs = kwargs
 

@@ -55,6 +55,7 @@ personalized_shopping/shared_libraries/search_engine/indexes_1k/*
 # Ignore all JSON data files within the 'personalized_shopping' directory.
 personalized_shopping/**/*.json
 personalized_shopping/**/*.jsonl
+personalized_shopping/shared_libraries/search_engine/indexes/indexes_1k/*
 
 # ===================================================================
 # IDE / Editor Files
@@ -68,3 +69,5 @@ personalized_shopping/**/*.jsonl
 .DS_Store
 Thumbs.db
 
+
+personalized_shopping/shared_libraries/search_engine/indexes/indexes_1k/segments_1
