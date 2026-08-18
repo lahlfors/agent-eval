@@ -6,9 +6,9 @@
   "experiment_name": "agent-eval-2x3-matrix",
   "pipeline_type": "vertex_dag",
   "runner": {
-    "engine": "google-adk",
-    "entrypoint": "personalized_shopping.agent:root_agent",
-    "adapter_class": "agent_eval_framework.adapters.adk_adapter.ADKAgentAdapter"
+    "engine": "generic-test-harness",
+    "entrypoint": "examples.multi_agent_example:run_multi_agent_system",
+    "adapter_class": "agent_eval_framework.adapters.multi_agent_adapter.MultiAgentSystemAdapter"
   },
   "dataset": {
     "gcs_uri": "gs://${GCS_EVAL_BUCKET}/datasets/golden_record_2x3_matrix.jsonl",

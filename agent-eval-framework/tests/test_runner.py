@@ -42,41 +42,46 @@ def setup_env():
     else:
         print(f"Warning: .env file not found at {dotenv_path}")
 
-def test_run_evaluation(mocker):
-    """Tests the `run_evaluation` function with mocked external dependencies.
-
-    This test verifies that the `run_evaluation` function can be executed
-    without making actual calls to Google Cloud services or loading large
-    datasets. It mocks the Vertex AI SDK, GCS client, and data loading
-    functions to ensure the core orchestration logic works as expected.
-
-    Args:
-        mocker: The pytest-mock fixture for mocking objects.
-    """
+def test_run_evaluation_mono_agent(mocker):
+    """Tests the `run_evaluation` function for a mono-agent system with mocked Vertex AI."""
     import agent_eval_framework.runner
-    import personalized_shopping.shared_libraries.web_agent_site.engine.engine
 
     # Mock GCP calls
     mocker.patch('agent_eval_framework.runner.vertexai.init')
     mocker.patch('agent_eval_framework.runner.aiplatform.init')
-    mocker.patch('personalized_shopping.shared_libraries.web_agent_site.engine.engine.init_search_engine')
     mock_eval_result = mocker.Mock()
-    mock_eval_result.summary_metrics = {"some_metric": 1.0}
+    mock_eval_result.summary_metrics = {"exact_match": 1.0, "token_cost_usd": 0.0001}
     mock_eval_result.metrics_table = pd.DataFrame()
 
     mock_eval_task_class = mocker.patch('agent_eval_framework.runner.EvalTask')
     mock_eval_task_instance = mock_eval_task_class.return_value
     mock_eval_task_instance.evaluate.return_value = mock_eval_result
 
-    # Mock data loading
-    mocker.patch(
-        'personalized_shopping.shared_libraries.web_agent_site.engine.engine.load_products',
-        return_value=([], {}, {}, defaultdict(set))
-    )
     from agent_eval_framework.runner import run_evaluation
     config_path = os.path.join(os.path.dirname(__file__), "..", "config", "eval_config.yaml")
     assert os.path.exists(config_path), f"Config file not found: {config_path}"
-    print(f"Running evaluation with config: {config_path}")
     eval_result = run_evaluation(config_path)
     assert eval_result is not None
-    print("Eval result summary:", eval_result.summary_metrics)
+    assert eval_result.summary_metrics["exact_match"] == 1.0
+
+
+def test_run_evaluation_multi_agent(mocker):
+    """Tests the `run_evaluation` function for a multi-agent system."""
+    import agent_eval_framework.runner
+
+    mocker.patch('agent_eval_framework.runner.vertexai.init')
+    mocker.patch('agent_eval_framework.runner.aiplatform.init')
+    mock_eval_result = mocker.Mock()
+    mock_eval_result.summary_metrics = {"trajectory_exact_match": 1.0, "cost_savings_multiplier": 18.5}
+    mock_eval_result.metrics_table = pd.DataFrame()
+
+    mock_eval_task_class = mocker.patch('agent_eval_framework.runner.EvalTask')
+    mock_eval_task_instance = mock_eval_task_class.return_value
+    mock_eval_task_instance.evaluate.return_value = mock_eval_result
+
+    from agent_eval_framework.runner import run_evaluation
+    config_path = os.path.join(os.path.dirname(__file__), "..", "config", "multi_agent_eval_config.yaml")
+    assert os.path.exists(config_path), f"Config file not found: {config_path}"
+    eval_result = run_evaluation(config_path)
+    assert eval_result is not None
+    assert eval_result.summary_metrics["cost_savings_multiplier"] == 18.5

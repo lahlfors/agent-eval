@@ -1,4 +1,9 @@
+experiment_name: "mono-agent-evaluation"
+run_name_prefix: "mono-eval"
+
+# Interface any single agent via CallableAgentAdapter or ADKAgentAdapter
 agent_adapter_class: "agent_eval_framework.adapters.callable_adapter.CallableAgentAdapter"
+
 agent_config:
   target: "examples.mono_agent_example:run_agent"
   response_key: "response"
@@ -7,27 +12,18 @@ agent_config:
 dataset_path: "agent-eval-framework/data/simple.test.jsonl"
 
 column_mapping:
-  query: "prompt"
-  reference_answer: "reference"
-  reference_response: "reference"
-  trajectory: "reference_trajectory"
-
-prompt_column: "prompt"
-target_column: "reference"
+  prompt: "prompt"
+  reference: "reference"
+  reference_trajectory: "reference_trajectory"
 
 metrics:
-  - name: "exact_match"
-    type: "computation"
-  - name: "bleu"
-    type: "computation"
-  - name: "rouge_l_sum"
-    type: "computation"
+  - "exact_match"
+  - "bleu"
+  - "rouge_l_sum"
+  - "trajectory_exact_match"
   - name: "cost_savings_multiplier"
     type: "custom_function"
     custom_function_path: "agent_eval_framework.metrics.tokenomics_metrics.cost_savings_multiplier"
   - name: "token_cost_usd"
     type: "custom_function"
     custom_function_path: "agent_eval_framework.metrics.tokenomics_metrics.token_cost_usd"
-
-experiment_name: "agent-eval-harness-demo"
-run_name_prefix: "eval-run"

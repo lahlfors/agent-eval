@@ -110,8 +110,8 @@ def test_shopping_agent_vertex_eval(vertex_ai_context_manager, eval_config):
         vertex_ai_context_manager: The fixture that provides the unique run name.
         eval_config: The fixture that provides the evaluation configuration.
     """
-    if not os.getenv("GOOGLE_CLOUD_PROJECT") or not os.getenv("GOOGLE_CLOUD_LOCATION"):
-        pytest.skip("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set in .env file to run Vertex AI evaluations.")
+    if not os.getenv("RUN_LIVE_VERTEX_TESTS"):
+        pytest.skip("Skipping live Vertex AI integration test. Set RUN_LIVE_VERTEX_TESTS=1 to run.")
 
     experiment_run_name = vertex_ai_context_manager
 

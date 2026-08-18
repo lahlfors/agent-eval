@@ -1,57 +1,42 @@
 [project]
-name = "personalized-shopping"
-version = "0.1.0"
-description = "Personalized Shopping with Google ADK"
-authors = [{ name = "Yiwen Song", email = "yiwensong@google.com" }, {name = "laah"}]
-license = "Apache License 2.0"
+name = "agent-eval-harness"
+version = "0.2.0"
+description = "Universal Evaluation Test Harness for Mono-Agent and Multi-Agent Systems on Google Cloud Vertex AI"
+authors = [{ name = "laah", email = "laah@google.com" }]
+license = "Apache-2.0"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.12,<3.14"
-google-cloud-aiplatform = {extras = ["evaluation"], version = "^1.49.0"}
+python = ">=3.11,<3.14"
+google-cloud-aiplatform = {extras = ["evaluation"], version = ">=1.49.0"}
 google-genai = ">=1.3.0"
 google-adk = {version = ">=1.15.0", extras = ["eval"]}
-pydantic = "^2.10.6"
-python-dotenv = "^1.0.1"
-pyserini = "^0.43.0"
-rich = "^13.9.4"
-cleantext = "^1.1.4"
-Flask = "^3.1.0"
-spacy = "^3.8.2"
-en_core_web_sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
-thefuzz = "^0.22.1"
-gym = "0.23.0"
-torch = "^2.5.1"
-torchvision = "^0.20.1"
-gdown = "^5.2.0"
-pytest = "^8.3.5"
-tabulate = "^0.9.0"
-absl-py = "^2.2.1"
-pyyaml = "^6.0.2"
-pandas = "^2.2.2"
+google-cloud-storage = ">=2.18.0"
+pydantic = ">=2.10.0"
+python-dotenv = ">=1.0.1"
+pyyaml = ">=6.0.2"
+pandas = ">=2.2.2"
+requests = ">=2.31.0"
+tabulate = ">=0.9.0"
+rich = ">=13.9.4"
 agent-eval-framework = {path = "agent-eval-framework", develop = true}
-contextvars = { version = "*", python = ">=3.7" }
-google-cloud-storage = "^2.18.0"
 
 # OpenTelemetry Packages
-google-auth = "^2.30.0"
-opentelemetry-api = "~1.37.0"
-opentelemetry-sdk = "^1.37.0"
-opentelemetry-instrumentation-logging = "^0.58b0"
-opentelemetry-exporter-otlp-proto-http = "^1.37.0"
-google-cloud-trace = "^1.10.0"
-opentelemetry-exporter-gcp-trace = "^1.5.0"
-opentelemetry-exporter-otlp = "^1.37.0"
-python-json-logger = "^2.0.7"
-openinference-instrumentation-vertexai = "^0.1.11"
-
+google-auth = ">=2.30.0"
+opentelemetry-api = ">=1.20.0"
+opentelemetry-sdk = ">=1.20.0"
+opentelemetry-instrumentation-logging = ">=0.40b0"
+opentelemetry-exporter-otlp-proto-http = ">=1.20.0"
+opentelemetry-exporter-otlp = ">=1.20.0"
+google-cloud-trace = ">=1.10.0"
+python-json-logger = ">=2.0.7"
 
 [tool.poetry.group.dev.dependencies]
 black = "^25.1.0"
+pytest = "^8.3.5"
 pytest-asyncio = "^0.26.0"
-ipython = "^8.26.0"
 pytest-mock = "^3.12.0"
-
+ipython = "^8.26.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

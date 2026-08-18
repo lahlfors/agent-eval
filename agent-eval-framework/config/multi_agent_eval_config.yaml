@@ -1,6 +1,7 @@
-experiment_name: "agent-eval-2x3-matrix"
-run_name_prefix: "matrix-eval-run"
+experiment_name: "multi-agent-system-evaluation"
+run_name_prefix: "mas-eval"
 
+# Dedicated adapter for hierarchical, sequential, or collaborative multi-agent systems
 agent_adapter_class: "agent_eval_framework.adapters.multi_agent_adapter.MultiAgentSystemAdapter"
 
 agent_config:
@@ -10,7 +11,6 @@ agent_config:
     - "ResearchSpecialist"
     - "CalculationSpecialist"
 
-# Supports local relative paths or remote 'gs://<bucket>/datasets/...' URIs
 dataset_path: "agent-eval-framework/data/vertex_eval_data/golden_record_2x3_matrix.jsonl"
 
 column_mapping:
@@ -19,23 +19,16 @@ column_mapping:
   reference_trajectory: "reference_trajectory"
 
 metrics:
-  # Standard Response Accuracy
   - "exact_match"
   - "bleu"
   - "rouge_l_sum"
-
-  # Trajectory Tool Use
   - "trajectory_exact_match"
-
-  # Tokenomics & Cost Analysis Metrics
   - name: "cost_savings_multiplier"
     type: "custom_function"
     custom_function_path: "agent_eval_framework.metrics.tokenomics_metrics.cost_savings_multiplier"
-
   - name: "token_cost_usd"
     type: "custom_function"
     custom_function_path: "agent_eval_framework.metrics.tokenomics_metrics.token_cost_usd"
-
   - name: "multi_turn_token_growth_rate"
     type: "custom_function"
     custom_function_path: "agent_eval_framework.metrics.tokenomics_metrics.multi_turn_token_growth_rate"

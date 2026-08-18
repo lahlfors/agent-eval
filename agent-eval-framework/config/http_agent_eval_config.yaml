@@ -1,0 +1,30 @@
+experiment_name: "remote-agent-evaluation"
+run_name_prefix: "http-eval"
+
+# Interface any remote agent via HTTP / REST / A2A endpoint
+agent_adapter_class: "agent_eval_framework.adapters.http_adapter.HttpAgentAdapter"
+
+agent_config:
+  endpoint_url: "https://your-agent-service-on-cloud-run.a.run.app/query"
+  method: "POST"
+  prompt_payload_key: "prompt"
+  response_json_path: "response"
+  trajectory_json_path: "trajectory"
+  headers:
+    Content-Type: "application/json"
+    # Authorization: "Bearer YOUR_ACCESS_TOKEN"
+
+dataset_path: "agent-eval-framework/data/simple.test.jsonl"
+
+column_mapping:
+  prompt: "prompt"
+  reference: "reference"
+  reference_trajectory: "reference_trajectory"
+
+metrics:
+  - "exact_match"
+  - "bleu"
+  - "rouge_l_sum"
+  - name: "token_cost_usd"
+    type: "custom_function"
+    custom_function_path: "agent_eval_framework.metrics.tokenomics_metrics.token_cost_usd"

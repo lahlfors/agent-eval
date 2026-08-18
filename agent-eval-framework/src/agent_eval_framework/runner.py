@@ -291,6 +291,10 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         column_mapping = config.get("column_mapping", {})
         df_dataset.rename(columns=column_mapping, inplace=True)
 
+        # Consolidate duplicate column names if mapping merged columns
+        if df_dataset.columns.duplicated().any():
+            df_dataset = df_dataset.T.groupby(level=0).first().T
+
         prompt_col = config.get("prompt_column", "prompt")
         target_col = config.get("target_column", "reference")
 
@@ -303,7 +307,7 @@ def run_evaluation(config_path: str, experiment_run_name: str = None):
         cols_to_clean = ["prompt", "reference", "response", "predicted_trajectory", "reference_trajectory"]
         for col in cols_to_clean:
             if col in df_dataset.columns:
-                if df_dataset[col].isnull().any():
+                if bool(np.any(pd.isna(df_dataset[col]))):
                     log.warning(f"NaN values found in column '{col}', replacing with empty string for API compatibility.")
                     df_dataset[col] = df_dataset[col].fillna('')
 

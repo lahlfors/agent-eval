@@ -1,11 +1,12 @@
-experiment_name: "personalized-shopping-adk-eval"
-run_name_prefix: "eval-run-38" # Increment for a clean run
+experiment_name: "adk-agent-evaluation"
+run_name_prefix: "eval-run-01"
 
-agent_adapter_class: "agent_eval_framework.adapters.adk_adapter.ADKAgentAdapter"
+agent_adapter_class: "agent_eval_framework.adapters.callable_adapter.CallableAgentAdapter"
 
 agent_config:
-  agent_module: "personalized_shopping.agent"
-  agent_name: "root_agent"
+  target: "examples.mono_agent_example:run_agent"
+  response_key: "response"
+  trajectory_key: "trajectory"
 
 dataset_path: "agent-eval-framework/data/simple.test.jsonl"
 
