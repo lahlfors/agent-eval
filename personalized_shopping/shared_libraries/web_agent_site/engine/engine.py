@@ -13,7 +13,10 @@ import re
 from os.path import join, dirname, abspath
 
 from flask import render_template_string
-from pyserini.search.lucene import LuceneSearcher
+try:
+    from pyserini.search.lucene import LuceneSearcher
+except ImportError:
+    LuceneSearcher = None
 from rich import print
 from tqdm import tqdm
 

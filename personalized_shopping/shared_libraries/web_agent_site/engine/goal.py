@@ -6,17 +6,23 @@ from collections import defaultdict
 import itertools
 import random
 from rich import print
-import spacy
-from thefuzz import fuzz
-# Absolute import
-from personalized_shopping.shared_libraries.web_agent_site.engine.normalize import normalize_color
-
 try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    print("Downloading 'en_core_web_sm' for spaCy...")
-    spacy.cli.download("en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
+    import spacy
+    try:
+        nlp = spacy.load("en_core_web_sm")
+    except OSError:
+        try:
+            print("Downloading 'en_core_web_sm' for spaCy...")
+            spacy.cli.download("en_core_web_sm")
+            nlp = spacy.load("en_core_web_sm")
+        except Exception:
+            nlp = None
+except (ImportError, Exception):
+    spacy = None
+    nlp = None
+
+from thefuzz import fuzz
+from personalized_shopping.shared_libraries.web_agent_site.engine.normalize import normalize_color
 
 PRICE_RANGE = [10.0 * i for i in range(1, 100)]
 

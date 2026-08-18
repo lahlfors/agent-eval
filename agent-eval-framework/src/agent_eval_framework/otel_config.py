@@ -77,7 +77,10 @@ def setup_opentelemetry():
     setup_tracing(trace_provider)
 
     # Instrument for Vertex AI
-    VertexAIInstrumentor().instrument()
+    try:
+        VertexAIInstrumentor().instrument()
+    except Exception as e:
+        sys.stdout.write(f"otel_config.py: Note: VertexAIInstrumentor skipped or unavailable: {e}\n")
 
     sys.stdout.flush()
 

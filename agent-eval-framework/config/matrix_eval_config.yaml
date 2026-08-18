@@ -1,0 +1,38 @@
+experiment_name: "agent-eval-2x3-matrix"
+run_name_prefix: "matrix-eval-run"
+
+agent_adapter_class: "agent_eval_framework.adapters.adk_adapter.ADKAgentAdapter"
+
+agent_config:
+  agent_module: "personalized_shopping.agent"
+  agent_name: "root_agent"
+
+# Supports local relative paths or remote 'gs://<bucket>/datasets/...' URIs
+dataset_path: "agent-eval-framework/data/vertex_eval_data/golden_record_2x3_matrix.jsonl"
+
+column_mapping:
+  prompt: "prompt"
+  reference: "reference"
+  reference_trajectory: "reference_trajectory"
+
+metrics:
+  # Standard Response Accuracy
+  - "exact_match"
+  - "bleu"
+  - "rouge_l_sum"
+
+  # Trajectory Tool Use
+  - "trajectory_exact_match"
+
+  # Tokenomics & Cost Analysis Metrics
+  - name: "cost_savings_multiplier"
+    type: "custom_function"
+    custom_function_path: "agent_eval_framework.metrics.tokenomics_metrics.cost_savings_multiplier"
+
+  - name: "token_cost_usd"
+    type: "custom_function"
+    custom_function_path: "agent_eval_framework.metrics.tokenomics_metrics.token_cost_usd"
+
+  - name: "multi_turn_token_growth_rate"
+    type: "custom_function"
+    custom_function_path: "agent_eval_framework.metrics.tokenomics_metrics.multi_turn_token_growth_rate"

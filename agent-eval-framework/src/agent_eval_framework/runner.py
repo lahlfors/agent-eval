@@ -163,6 +163,9 @@ def _build_metrics(metrics_config: List[Union[str, Dict[str, Any]]]) -> List[Any
                     metric_function=custom_function
                 ))
                 log.info(f"Appended CustomMetric: {metric_name}")
+            elif metric_type in ("computation", "standard", None):
+                metrics.append(metric_name)
+                log.info(f"Appended built-in computation metric: {metric_name}")
             else:
                  raise ValueError(f"Unsupported metric configuration for: {metric_name} with type: {metric_type}")
         else:

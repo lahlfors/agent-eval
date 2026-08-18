@@ -85,12 +85,27 @@ In this example:
 
 ---
 
-### **Step 3: Run the Evaluation**
+---
 
-Run your evaluation script as you normally would. The framework will automatically import your custom function, execute it for each test case, and include the results in the final summary.
+### **Built-in Tokenomics & Cost Analysis Metrics**
 
-```bash
-python run_my_eval.py
+The framework includes pre-built custom metrics for tokenomics and cost modeling:
+
+1. **`cost_savings_multiplier`** (`agent_eval_framework.metrics.tokenomics_metrics.cost_savings_multiplier`):
+   - Computes the cost multiplier advantage of candidate model (e.g. Gemini 3.7 Flash) over the baseline model (e.g. Claude 3.7 Sonnet).
+
+2. **`token_cost_usd`** (`agent_eval_framework.metrics.tokenomics_metrics.token_cost_usd`):
+   - Calculates the exact USD cost per agent execution.
+
+3. **`multi_turn_token_growth_rate`** (`agent_eval_framework.metrics.tokenomics_metrics.multi_turn_token_growth_rate`):
+   - Measures token accumulation efficiency and checks for payload bloat across multi-turn tool trajectories.
+
+```yaml
+metrics:
+  - name: 'cost_savings_multiplier'
+    type: 'custom_function'
+    custom_function_path: 'agent_eval_framework.metrics.tokenomics_metrics.cost_savings_multiplier'
+  - name: 'token_cost_usd'
+    type: 'custom_function'
+    custom_function_path: 'agent_eval_framework.metrics.tokenomics_metrics.token_cost_usd'
 ```
-
-The output will now include a new column for your `keyword_match` metric, showing the score for each prompt. The summary metrics will also include an aggregate score (e.g., the average) for your custom metric.

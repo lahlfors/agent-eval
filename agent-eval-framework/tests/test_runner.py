@@ -53,6 +53,9 @@ def test_run_evaluation(mocker):
     Args:
         mocker: The pytest-mock fixture for mocking objects.
     """
+    import agent_eval_framework.runner
+    import personalized_shopping.shared_libraries.web_agent_site.engine.engine
+
     # Mock GCP calls
     mocker.patch('agent_eval_framework.runner.vertexai.init')
     mocker.patch('agent_eval_framework.runner.aiplatform.init')

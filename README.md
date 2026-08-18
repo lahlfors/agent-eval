@@ -187,27 +187,49 @@ The evaluation assesses the agent's performance on tasks defined in the evalset.
 
 ### Run Agent Evaluation Tests
 
-The `agent-eval-framework` comes with tests that demonstrate how to run evaluations in different scenarios.
+The `agent-eval-framework` supports both local fast-loop developer feedback and live Vertex AI enterprise experiments.
 
-#### Local Unit Test (Mocked)
-This test runs the evaluation framework without any external dependencies. It uses a local agent adapter and mocks all calls to Google Cloud services, making it fast and suitable for CI/CD environments.
+#### 1. 2x3 Matrix Evaluation with Tokenomics (Live Vertex AI)
+Run the full 2x3 matrix evaluation with response accuracy, trajectory evaluation, and tokenomics cost analysis:
+```bash
+python -c "from agent_eval_framework.runner import run_evaluation; run_evaluation('agent-eval-framework/config/matrix_eval_config.yaml')"
+```
 
-Run the local test from the project root:
+#### 2. Local Unit Test (Mocked)
+This test runs the evaluation framework without external cloud dependencies, making it fast and suitable for offline CI/CD pipelines:
 ```bash
 pytest agent-eval-framework/tests/test_runner.py
 ```
 
-#### Vertex Integration Test (Live)
-This test runs the full end-to-end evaluation pipeline against a live, deployed agent on Vertex AI. It requires your environment to be configured with Google Cloud credentials and an `AGENT_ENGINE_ID` in your `.env` file.
-
-Run the integration test from the project root:
+#### 3. Vertex Integration Test (Live Deployed Agent)
+This test runs against a live, deployed agent on Vertex AI Agent Engine:
 ```bash
 pytest agent-eval-framework/tests/test_runner_vertex.py
 ```
 
+### Golden Dataset Sync Tool (`tools/gcs_dataset_sync.py`)
+
+Manage and validate golden datasets stored locally or in Google Cloud Storage (`gs://`):
+```bash
+# Validate local dataset format
+python tools/gcs_dataset_sync.py validate agent-eval-framework/data/vertex_eval_data/golden_record_2x3_matrix.jsonl
+
+# Upload golden dataset to GCS
+python tools/gcs_dataset_sync.py upload agent-eval-framework/data/vertex_eval_data/golden_record_2x3_matrix.jsonl --gcs-uri gs://YOUR_BUCKET/datasets/golden_record_2x3_matrix.jsonl
+
+# List datasets in GCS
+python tools/gcs_dataset_sync.py list gs://YOUR_BUCKET/datasets/
+```
+
+### SmartEval & Vertex AI Pipelines Integration
+
+- **SmartEval Configuration (`smarteval_config.json`)**: Declarative configuration template for orchestrating agent evaluations within Google's internal SmartEval DAG pipeline (`go/gcp-smart-eval`).
+- **Vertex AI Pipelines (`deployment/vertex_pipeline.py`)**: Run scalable batch evaluation pipelines on Vertex AI Custom Jobs.
+- **Interactive Walkthrough Notebook (`notebooks/agent_eval_matrix_walkthrough.ipynb`)**: End-to-end Jupyter/Colab notebook for executing the 2x3 evaluation matrix, Auto-SxS evaluation, and Tokenomics ROI analysis (Gemini 3.7 Flash vs. Claude 3.7 Sonnet).
+
 ### Run Tool Unit Tests
 
-To run unit tests for the agent's tools, run the following command from the project root directory:
+To run unit tests for the agent's tools and evaluation metrics:
 ```bash
 python3 -m pytest tests
 ```
